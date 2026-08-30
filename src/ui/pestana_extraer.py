@@ -283,6 +283,13 @@ class PestanaExtraer(QWidget):
             "mientras siga encontrando, no corta por reloj."
         )
 
+        self.chk_exhaustivo = QCheckBox("Busqueda exhaustiva (mas lenta, no se salta nada)")
+        self.chk_exhaustivo.setToolTip(
+            "Quita el tope de tiempo, recorre cada seccion hasta el final y\n"
+            "comprueba la fecha de TODAS las publicaciones encontradas.\n"
+            "Usalo cuando lo importante sea que no falte ninguna."
+        )
+
         self.chk_pestanas = QCheckBox("Buscar tambien en Reels / Videos / Fotos")
         self.chk_pestanas.setChecked(True)
         self.chk_pestanas.setToolTip(
@@ -311,6 +318,7 @@ class PestanaExtraer(QWidget):
         rejilla.addWidget(self.spin_minutos, 2, 1)
         rejilla.addWidget(self.chk_pestanas, 2, 2, 1, 2)
         rejilla.addWidget(self.chk_verificar_fechas, 3, 0, 1, 2)
+        rejilla.addWidget(self.chk_exhaustivo, 3, 2, 1, 2)
         rejilla.addWidget(
             etiqueta_ayuda(
                 "Deja marcado «Mostrar el navegador» al principio: asi ves lo que "
@@ -484,6 +492,7 @@ class PestanaExtraer(QWidget):
             verificar_fechas=self.chk_verificar_fechas.isChecked(),
             buscar_en_pestanas=self.chk_pestanas.isChecked(),
             minutos_por_seccion=self.spin_minutos.value(),
+            exhaustivo=self.chk_exhaustivo.isChecked(),
         )
 
     # -------------------------------------------------------- ranuras (señales)

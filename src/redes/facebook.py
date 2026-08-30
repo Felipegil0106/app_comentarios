@@ -177,7 +177,10 @@ class ExtractorFacebook(ExtractorRed):
                 return (desde - timedelta(days=2)) <= p.fecha <= (hasta + timedelta(days=2))
 
             a_comprobar = [p for p in candidatas if merece_comprobar(p)]
-            tope = max(opciones.max_publicaciones * 3, 60)
+            tope = (
+                len(a_comprobar) if opciones.exhaustivo
+                else max(opciones.max_publicaciones * 3, 60)
+            )
             if len(a_comprobar) > tope:
                 progreso.log(
                     f"   Hay {len(a_comprobar)} fechas por comprobar; me quedo "
@@ -185,7 +188,10 @@ class ExtractorFacebook(ExtractorRed):
                 )
                 a_comprobar = a_comprobar[:tope]
             if a_comprobar:
-                self.verificar_fechas(pagina, a_comprobar, progreso, desde)
+                self.verificar_fechas(
+                    pagina, a_comprobar, progreso, desde,
+                    saltar_secciones=not opciones.exhaustivo,
+                )
 
         # Filtramos por rango de fechas.
         #
@@ -237,7 +243,9 @@ class ExtractorFacebook(ExtractorRed):
         # pocas: al recorrer las pestañas sale el historial entero del perfil y
         # llenar la tabla con cientos de videos antiguos solo estorba.
         sin_confirmar.sort(key=lambda p: p.fecha or datetime.min, reverse=True)
-        TOPE_DUDOSAS = 30
+        # En modo exhaustivo enseñamos muchas mas dudosas: el objetivo ahi es
+        # que no se te escape nada, aunque tengas que revisar mas a mano.
+        TOPE_DUDOSAS = 300 if opciones.exhaustivo else 30
         if len(sin_confirmar) > TOPE_DUDOSAS:
             progreso.log(
                 f"   {len(sin_confirmar)} publicaciones sin fecha confirmada "
@@ -346,7 +354,9 @@ class ExtractorFacebook(ExtractorRed):
             # publicaciones que nos interesan NO cortamos por reloj: el tope
             # esta para no recorrer diez años de historial, no para dejarnos
             # publicaciones validas fuera.
-            if time.monotonic() > limite and rondas_sin_recientes >= 5:
+            if (not opciones.exhaustivo
+                    and time.monotonic() > limite
+                    and rondas_sin_recientes >= 5):
                 progreso.log(
                     f"   «{nombre}»: se agoto el tiempo asignado "
                     f"({opciones.minutos_por_seccion} min) y ya no aparecen "
@@ -381,8 +391,15 @@ class ExtractorFacebook(ExtractorRed):
             # El margen de 2 dias existe porque algunas fechas son aproximadas
             # (salen de la hora de un comentario, que es POSTERIOR al post).
             # Sin margen pararíamos antes de tiempo y dejariamos fuera posts validos.
-            con_fecha = [p for p in encontradas.values() if p.fecha]
-            if con_fecha and rondas_sin_recientes >= 15 and ronda >= 12:
+            # OJO: solo miramos las fechas de ESTA seccion. Si usaramos todas
+            # las encontradas, al entrar en la pestaña Reels ya arrastrariamos
+            # las fechas viejas de la linea de tiempo y daríamos la seccion por
+            # agotada nada mas empezar, dejandonos publicaciones del rango.
+            con_fecha = [
+                p for p in encontradas.values() if p.fecha and p.seccion == nombre
+            ]
+            umbral_sin_recientes = 40 if opciones.exhaustivo else 15
+            if con_fecha and rondas_sin_recientes >= umbral_sin_recientes and ronda >= 12:
                 if min(p.fecha for p in con_fecha) < desde - timedelta(days=2):
                     progreso.log(
                         f"   «{nombre}»: alcanzadas publicaciones anteriores al rango."
@@ -437,7 +454,7 @@ class ExtractorFacebook(ExtractorRed):
             # Nada nuevo puede significar que aun esta cargando, no que se acabo
             if rondas_sin_nuevas >= 3:
                 pagina.wait_for_timeout(1500)
-            if rondas_sin_nuevas >= 25:
+            if rondas_sin_nuevas >= (45 if opciones.exhaustivo else 25):
                 progreso.log(f"   «{nombre}»: no aparecen publicaciones nuevas.")
                 return
 
@@ -504,6 +521,7 @@ class ExtractorFacebook(ExtractorRed):
         publicaciones: list[Publicacion],
         progreso: Progreso,
         desde: datetime | None = None,
+        saltar_secciones: bool = True,
     ) -> None:
         """Abre cada publicacion y lee su fecha EXACTA y su texto real.
 
@@ -573,7 +591,7 @@ class ExtractorFacebook(ExtractorRed):
                 # viejo. Si encadenamos varias anteriores al rango, el resto de
                 # ESA seccion sera aun mas antiguo: la saltamos entera y pasamos
                 # a la siguiente (no abandonamos la comprobacion por completo).
-                if desde and exacta:
+                if desde and exacta and saltar_secciones:
                     # 20 seguidas, no 12: las secciones no siempre van en orden
                     # perfecto (publicaciones fijadas arriba, reordenaciones de
                     # Facebook) y con un umbral corto se saltaban publicaciones

@@ -56,6 +56,10 @@ class OpcionesExtraccion:
     # como «Videos» puede tirarse media hora bajando por todo el historial
     # del perfil aunque el rango de fechas sea de tres dias.
     minutos_por_seccion: int = 8
+    # Modo exhaustivo: prioriza NO dejarse ninguna publicacion por encima de la
+    # velocidad. Quita el tope de tiempo, sube todos los umbrales de parada y
+    # comprueba la fecha de todos los candidatos. Es mucho mas lento.
+    exhaustivo: bool = False
     # Al abrir cada publicacion se lee su fecha EXACTA. Si esta activo y la
     # fecha real cae fuera del rango, se omite. Solo se usa en modo automatico:
     # cuando el usuario elige las publicaciones a mano, manda su eleccion.
