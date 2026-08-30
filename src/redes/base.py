@@ -55,7 +55,7 @@ class OpcionesExtraccion:
     # Minutos maximos recorriendo CADA seccion. Sin este tope, una pestaña
     # como «Videos» puede tirarse media hora bajando por todo el historial
     # del perfil aunque el rango de fechas sea de tres dias.
-    minutos_por_seccion: int = 5
+    minutos_por_seccion: int = 8
     # Al abrir cada publicacion se lee su fecha EXACTA. Si esta activo y la
     # fecha real cae fuera del rango, se omite. Solo se usa en modo automatico:
     # cuando el usuario elige las publicaciones a mano, manda su eleccion.

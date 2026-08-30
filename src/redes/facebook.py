@@ -341,10 +341,16 @@ class ExtractorFacebook(ExtractorRed):
         for ronda in range(1, opciones.max_desplazamientos + 1):
             if progreso.cancelado():
                 return
-            if time.monotonic() > limite:
+            # El tope de tiempo solo entra en juego cuando ya llevamos un rato
+            # sin ver nada del rango de fechas. Mientras sigan apareciendo
+            # publicaciones que nos interesan NO cortamos por reloj: el tope
+            # esta para no recorrer diez años de historial, no para dejarnos
+            # publicaciones validas fuera.
+            if time.monotonic() > limite and rondas_sin_recientes >= 5:
                 progreso.log(
                     f"   «{nombre}»: se agoto el tiempo asignado "
-                    f"({opciones.minutos_por_seccion} min). Paso a la siguiente."
+                    f"({opciones.minutos_por_seccion} min) y ya no aparecen "
+                    "publicaciones del rango. Paso a la siguiente."
                 )
                 return
 
@@ -568,8 +574,12 @@ class ExtractorFacebook(ExtractorRed):
                 # ESA seccion sera aun mas antiguo: la saltamos entera y pasamos
                 # a la siguiente (no abandonamos la comprobacion por completo).
                 if desde and exacta:
+                    # 20 seguidas, no 12: las secciones no siempre van en orden
+                    # perfecto (publicaciones fijadas arriba, reordenaciones de
+                    # Facebook) y con un umbral corto se saltaban publicaciones
+                    # validas que venian despues.
                     seguidas_antiguas = seguidas_antiguas + 1 if exacta < desde else 0
-                    if seguidas_antiguas >= 12:
+                    if seguidas_antiguas >= 20:
                         saltadas = 0
                         while (i < total
                                and publicaciones[i].seccion == seccion_actual):
@@ -663,27 +673,10 @@ class ExtractorFacebook(ExtractorRed):
         en_reels = "/reel/" in publicacion.url.lower()
         rondas_sin_nuevos = 0
 
-        # Anclamos el panel de comentarios de ESTA publicacion. A partir de
-        # aqui solo leemos y desplazamos dentro de el, de modo que aunque el
-        # carrusel se mueva no se nos cuelan comentarios de otro reel.
-        try:
-            ancla = pagina.evaluate(
-                JS_ANCLAR_PANEL,
-                [self.cfg["selectores_texto_comentario"],
-                 self.cfg["prefijo_comentario_aria"]],
-            ) or {}
-        except Exception:
-            ancla = {}
-        if ancla.get("ok"):
-            progreso.log("   Panel de comentarios anclado a esta publicacion.")
-        elif en_reels:
-            progreso.log(
-                "   Aviso: no se pudo anclar el panel; me limitare a lo visible."
-            )
-
         # Guardamos el identificador del reel para detectar si el reproductor
         # se nos escapa a la siguiente tarjeta.
         id_original = self._identificador_reel(publicacion.url)
+        anclado_alguna_vez = False
 
         for vuelta in range(1, 81):
             if progreso.cancelado():
@@ -691,6 +684,7 @@ class ExtractorFacebook(ExtractorRed):
 
             # ¿Se movio el carrusel a otro reel? Entonces todo lo que venga ya
             # no es de esta publicacion: paramos con lo que llevamos.
+            desviado = False
             if id_original:
                 id_actual = self._identificador_reel(pagina.url)
                 if id_actual and id_actual != id_original:
@@ -699,6 +693,27 @@ class ExtractorFacebook(ExtractorRed):
                         "mezclar comentarios."
                     )
                     break
+
+            # Re-anclamos el panel EN CADA VUELTA, no una sola vez al principio.
+            #
+            # Hace falta por dos motivos: al abrir los comentarios todavia hay
+            # tan pocos que el panel no desborda y no se puede anclar; y cuando
+            # se pulsa «Ver mas comentarios» Facebook reemplaza el nodo, con lo
+            # que un ancla puesta antes se quedaria apuntando a un elemento
+            # muerto y dejariamos de leer. Solo re-anclamos mientras la URL
+            # siga siendo la de esta publicacion.
+            if not desviado:
+                try:
+                    ancla = pagina.evaluate(
+                        JS_ANCLAR_PANEL,
+                        [self.cfg["selectores_texto_comentario"],
+                         self.cfg["prefijo_comentario_aria"]],
+                    ) or {}
+                except Exception:
+                    ancla = {}
+                if ancla.get("ok") and not anclado_alguna_vez:
+                    anclado_alguna_vez = True
+                    progreso.log("   Panel de comentarios anclado a esta publicacion.")
 
             pulsados = 0
             try:

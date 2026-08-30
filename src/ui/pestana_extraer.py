@@ -275,12 +275,12 @@ class PestanaExtraer(QWidget):
 
         self.spin_minutos = QSpinBox()
         self.spin_minutos.setRange(1, 60)
-        self.spin_minutos.setValue(5)
+        self.spin_minutos.setValue(8)
         self.spin_minutos.setSuffix(" min")
         self.spin_minutos.setToolTip(
             "Tiempo maximo recorriendo cada seccion del perfil.\n"
-            "Evita que una pestaña con miles de videos se lleve media hora\n"
-            "cuando tu rango de fechas es de unos pocos dias."
+            "Solo se aplica cuando ya no aparecen publicaciones del rango:\n"
+            "mientras siga encontrando, no corta por reloj."
         )
 
         self.chk_pestanas = QCheckBox("Buscar tambien en Reels / Videos / Fotos")
