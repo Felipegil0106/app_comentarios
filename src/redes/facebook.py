@@ -305,6 +305,24 @@ class ExtractorFacebook(ExtractorRed):
                 secciones.append((nombre, f"{base}/{ruta}"))
         return secciones
 
+    def _sonda_fecha(self, aux: Page, url: str) -> datetime | None:
+        """Lee la fecha exacta de una publicacion en una pestaña APARTE.
+
+        Se usa una pestaña auxiliar a proposito: si navegaramos con la pestaña
+        principal perderiamos el punto por el que ibamos bajando la seccion y
+        habria que empezar de cero.
+        """
+        try:
+            aux.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            for intento in range(3):
+                aux.wait_for_timeout(300 if intento == 0 else 500)
+                datos = aux.evaluate(JS_DATOS_PUBLICACION) or {}
+                if datos.get("creacion"):
+                    return desde_epoch(datos["creacion"])
+        except Exception:
+            return None
+        return None
+
     def _recorrer_seccion(
         self,
         pagina: Page,
@@ -317,7 +335,46 @@ class ExtractorFacebook(ExtractorRed):
         desde: datetime,
         hasta: datetime,
     ) -> None:
-        """Abre una seccion del perfil y baja hasta el final recogiendo enlaces."""
+        """Recorre una seccion del perfil, con pestaña auxiliar para las sondas.
+
+        La pestaña auxiliar sirve para ir preguntando fechas SIN perder el punto
+        por el que vamos bajando. Es la optimizacion clave: las pestañas van de
+        lo mas nuevo a lo mas viejo, pero las rejillas de miniaturas no muestran
+        fechas, asi que sin sondas no habia forma de saber cuando ya habiamos
+        pasado el rango… y acabábamos recorriendo miles de publicaciones para
+        quedarnos con veinte.
+        """
+        aux: Page | None = None
+        try:
+            aux = pagina.context.new_page()
+        except Exception:
+            progreso.log("   (no se pudo abrir pestaña auxiliar; ire sin sondas)")
+        try:
+            self._recorrer_seccion_interna(
+                pagina, aux, url_seccion, nombre, encontradas,
+                url_perfil, opciones, progreso, desde, hasta,
+            )
+        finally:
+            if aux is not None:
+                try:
+                    aux.close()
+                except Exception:
+                    pass
+
+    def _recorrer_seccion_interna(
+        self,
+        pagina: Page,
+        aux: Page | None,
+        url_seccion: str,
+        nombre: str,
+        encontradas: dict[str, Publicacion],
+        url_perfil: str,
+        opciones: OpcionesExtraccion,
+        progreso: Progreso,
+        desde: datetime,
+        hasta: datetime,
+    ) -> None:
+        """Abre una seccion del perfil y baja recogiendo enlaces."""
         pagina.goto(url_seccion, wait_until="domcontentloaded", timeout=60_000)
         pagina.wait_for_timeout(2500)
         self._cerrar_estorbos(pagina)
@@ -345,6 +402,8 @@ class ExtractorFacebook(ExtractorRed):
         rondas_sin_recientes = 0
         rondas_al_final = 0
         limite = time.monotonic() + max(1, opciones.minutos_por_seccion) * 60
+
+        sondas_hechas = 0
 
         for ronda in range(1, opciones.max_desplazamientos + 1):
             if progreso.cancelado():
@@ -384,6 +443,32 @@ class ExtractorFacebook(ExtractorRed):
 
             rondas_sin_nuevas = 0 if nuevas else rondas_sin_nuevas + 1
             rondas_sin_recientes = 0 if hubo_reciente else rondas_sin_recientes + 1
+
+            # SONDA: cada pocas vueltas preguntamos la fecha real de la ultima
+            # publicacion descubierta en esta seccion. Como la seccion va de lo
+            # mas nuevo a lo mas viejo, esa es la mas antigua vista hasta ahora:
+            # en cuanto se sale del rango, todo lo que quede debajo tambien.
+            if aux is not None and ronda % 6 == 0 and nuevas:
+                de_seccion = [
+                    p for p in encontradas.values() if p.seccion == nombre
+                ]
+                if de_seccion:
+                    ultima = de_seccion[-1]
+                    fecha = self._sonda_fecha(aux, ultima.url)
+                    sondas_hechas += 1
+                    if fecha:
+                        ultima.fecha = fecha
+                        ultima.fecha_aproximada = False
+                        progreso.log(
+                            f"   Sonda {sondas_hechas}: por la publicacion "
+                            f"del {fecha:%d/%m/%Y} ({len(de_seccion)} vistas)"
+                        )
+                        if fecha < desde - timedelta(days=1):
+                            progreso.log(
+                                f"   «{nombre}»: ya pasamos el rango de fechas. "
+                                "Fin de la seccion."
+                            )
+                            return
 
             # Ya bajamos lo suficiente: solo aparecen publicaciones mas viejas
             # que la fecha inicial durante muchas vueltas seguidas.
