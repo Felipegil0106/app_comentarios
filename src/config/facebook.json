@@ -1,0 +1,46 @@
+{
+  "_ayuda": [
+    "Este archivo se puede editar con el Bloc de notas.",
+    "Facebook cambia su pagina cada cierto tiempo y algunos textos dejan de coincidir.",
+    "Si la app deja de encontrar comentarios, revisa aqui los textos de los botones.",
+    "Los valores son 'expresiones regulares' (patrones de texto). Si no sabes que son,",
+    "basta con que agregues el texto exacto del boton separado por | (barra vertical).",
+    "Despues de editar, guarda el archivo y vuelve a abrir la aplicacion."
+  ],
+
+  "boton_mas_comentarios": "(ver|mostrar|view|show)\\s+(m[aá]s|previous|anteriores|todos|all|\\d[\\d.,]*)\\s*(comentarios?|comments?|respuestas?|replies)?|^\\d[\\d.,]*\\s*(respuestas?|replies)$|m[aá]s comentarios|more comments|more replies|previous comments|comentarios anteriores",
+
+  "boton_ver_mas_texto": "^(ver m[aá]s|mostrar m[aá]s|see more|show more)$",
+
+  "_nota_abrir_comentarios": "Los reels se abren con el panel de comentarios CERRADO. Este es el aria-label del boton que hay que pulsar para que Facebook los cargue.",
+  "boton_abrir_comentarios": "^(comentar|comment|comentarios|comments|ver comentarios|view comments|escribe un comentario|write a comment)$",
+
+  "boton_orden_comentarios": "^(m[aá]s relevantes|principales comentarios|most relevant|top comments|m[aá]s recientes|newest|todos los comentarios|all comments)$",
+
+  "opcion_todos_los_comentarios": "^(todos los comentarios|all comments)$",
+
+  "boton_rechazar_cookies": "(rechazar cookies opcionales|rechazar (todas las )?cookies( opcionales)?|decline optional cookies|only allow essential|solo permitir cookies esenciales)",
+
+  "boton_cerrar_dialogo": "(cerrar|close|ahora no|not now)",
+
+  "prefijo_comentario_aria": "^(coment(a|á)rio de|comentario de|comment by|respuesta de|reply by|responder a)",
+
+  "selectores_texto_comentario": [
+    "[data-ad-rendering-role=\"comment_message\"]",
+    "[data-ad-comet-preview=\"message\"]",
+    "[data-ad-preview=\"message\"]"
+  ],
+
+  "patrones_url_publicacion": [
+    "/posts/",
+    "/videos/",
+    "/reel/",
+    "/watch/?v=",
+    "/photo",
+    "story_fbid=",
+    "permalink.php",
+    "/share/p/",
+    "/share/v/",
+    "/share/r/"
+  ]
+}

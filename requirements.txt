@@ -1,0 +1,7 @@
+# Dependencias de la aplicacion "Extractor de Comentarios"
+# Se instalan solas al ejecutar instalar.bat
+
+PySide6==6.7.3          # La ventana, botones, tablas (la interfaz grafica)
+playwright==1.47.0      # El navegador automatizado que visita las redes sociales
+pandas==2.2.3           # Manejo de tablas de datos
+openpyxl==3.1.5         # Para poder guardar archivos .xlsx (Excel)

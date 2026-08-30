@@ -1,0 +1,15 @@
+# Entorno de Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Datos generados por la aplicacion
+*.sqlite3
+diagnostico/
+salidas/
+*.csv
+*.xlsx
+
+# Editores
+.vscode/
+.idea/
