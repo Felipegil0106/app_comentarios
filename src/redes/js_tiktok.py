@@ -34,6 +34,31 @@ JS_ENLACES_PUBLICACIONES = r"""
 }
 """
 
+# Radiografia de la pagina: para saber QUE estamos viendo cuando no aparecen
+# publicaciones. Sin esto, un muro de acceso, un captcha y una pagina que no
+# cargo son indistinguibles: los tres dan cero enlaces.
+JS_ESTADO_PAGINA = r"""
+() => {
+  const t = document.body ? (document.body.innerText || '') : '';
+  const hayTexto = (frases) => frases.some(
+    f => t.toLowerCase().indexOf(f) !== -1);
+  return {
+    url: location.href,
+    titulo: document.title || '',
+    enlaces_total: document.querySelectorAll('a[href]').length,
+    enlaces_video: document.querySelectorAll('a[href*="/video/"], a[href*="/photo/"]').length,
+    hay_login: !!document.querySelector(
+      'input[name="username"], [data-e2e="login-button"], form[action*="login"]'),
+    hay_captcha: !!document.querySelector(
+      '[id*="captcha"], [class*="captcha"], [class*="Captcha"]')
+      || hayTexto(['verifica', 'arrastra', 'desliza', 'verify to continue',
+                   'drag the slider']),
+    parece_vacio: t.trim().length < 80,
+    texto: t.slice(0, 300)
+  };
+}
+"""
+
 # ---------------------------------------------------------------------------
 # Datos de UN video abierto
 # ---------------------------------------------------------------------------

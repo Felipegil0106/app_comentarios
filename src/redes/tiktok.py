@@ -41,6 +41,7 @@ from .js_tiktok import (
     JS_DESPLAZAR,
     JS_DESPLAZAR_PANEL,
     JS_ENLACES_PUBLICACIONES,
+    JS_ESTADO_PAGINA,
     JS_IR_A,
     JS_IR_AL_FONDO,
     JS_LEER_COMENTARIOS,
@@ -161,6 +162,11 @@ class ExtractorTikTok(ExtractorRed):
         pagina.wait_for_timeout(3500)
         self._cerrar_estorbos(pagina)
 
+        # Antes de nada, contamos que estamos viendo. Un muro de acceso, un
+        # captcha y una pagina que no cargo dan los tres cero enlaces, asi que
+        # sin esto no hay forma de distinguirlos.
+        self._informar_estado(pagina, progreso, "al abrir el perfil")
+
         if "/login" in pagina.url:
             raise RuntimeError(
                 "TikTok pidio iniciar sesion. Usa el boton "
@@ -226,6 +232,12 @@ class ExtractorTikTok(ExtractorRed):
                         "   ⚠ Veo enlaces pero no reconozco ninguno. Ejemplos:\n"
                         + "\n".join(f"      {e}" for e in ejemplos)
                     )
+                elif not crudos and ronda == 5:
+                    # Cinco vueltas sin ver ni un enlace: aqui pasa algo que
+                    # no es «este perfil no publica». Hay que verlo.
+                    self._informar_estado(pagina, progreso, "tras 5 vueltas sin enlaces")
+                    ruta = self.guardar_diagnostico(pagina, "tiktok_sin_enlaces")
+                    progreso.log(f"   Guarde la pagina en: {ruta}")
 
             con_fecha = [p for p in encontradas.values() if p.fecha]
             progreso.paso(
@@ -468,6 +480,50 @@ class ExtractorTikTok(ExtractorRed):
         return comentarios
 
     # -------------------------------------------------------------- auxiliares
+
+    def _informar_estado(self, pagina: Page, progreso: Progreso, cuando: str) -> None:
+        """Cuenta en el registro que pagina estamos viendo de verdad.
+
+        Un muro de acceso, un captcha y una pagina que no cargo producen todos
+        cero enlaces. Distinguirlos a ciegas es imposible; con esto se ve.
+        """
+        try:
+            e = pagina.evaluate(JS_ESTADO_PAGINA) or {}
+        except Exception as err:
+            progreso.log(f"   No se pudo leer el estado de la pagina: {str(err)[:80]}")
+            return
+
+        progreso.log(
+            f"   Estado {cuando}: {e.get('enlaces_total', 0)} enlaces en total, "
+            f"{e.get('enlaces_video', 0)} de video · «{str(e.get('titulo'))[:50]}»"
+        )
+        # Si ya hay enlaces a videos, la pagina esta bien: no hay nada que
+        # avisar aunque tenga poco texto (un perfil es casi todo miniaturas).
+        if e.get("enlaces_video"):
+            return
+
+        if e.get("hay_captcha"):
+            progreso.log(
+                "   ⚠ TikTok esta pidiendo una VERIFICACION (captcha). "
+                "Resuelvela a mano en la ventana del navegador y vuelve a "
+                "pulsar «Buscar publicaciones»."
+            )
+        elif e.get("hay_login"):
+            progreso.log(
+                "   ⚠ TikTok esta pidiendo INICIAR SESION para ver este perfil. "
+                "Usa «Abrir navegador e iniciar sesion», o pega las URLs de los "
+                "videos a mano en el Paso 4."
+            )
+        elif e.get("parece_vacio"):
+            progreso.log(
+                "   ⚠ La pagina esta practicamente vacia: no llego a cargar. "
+                "Prueba con el boton 🔄 de recargar."
+            )
+        elif not e.get("enlaces_video"):
+            progreso.log(
+                "   ⚠ La pagina cargo pero no trae enlaces a videos. "
+                f"Primeras palabras: «{str(e.get('texto'))[:120]}»"
+            )
 
     def _leer_comentarios_crudos(self, pagina: Page) -> tuple[list[dict], str, int]:
         try:

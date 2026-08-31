@@ -137,6 +137,12 @@ class HiloNavegador(QThread):
             self._sesiones[red] = sesion
             self.log.emit("🌐 Abriendo el navegador…")
             sesion.abrir()
+            # Marca de version: sirve para saber, mirando el registro, que se
+            # esta ejecutando el codigo actual y no una ventana vieja.
+            self.log.emit(
+                "   Navegador listo (sin depurador activado, sin aviso de "
+                "automatizacion)."
+            )
         return sesion
 
     def _progreso(self) -> Progreso:
