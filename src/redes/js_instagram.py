@@ -166,33 +166,6 @@ JS_LEER_COMENTARIOS = r"""
   // Un comentario se reconoce por: enlace al perfil de quien comenta + texto
   // que no sea solo el nombre. El pie de foto tiene esa misma forma, y se
   // descarta comparandolo con el que anuncia og:description.
-  // De donde leemos. NUNCA de document.body: la pagina de una publicacion
-  // trae debajo «mas publicaciones de este perfil», con sus autores y sus
-  // textos, y acabariamos atribuyendo a esta URL comentarios de otra.
-  // Si no logramos identificar el bloque de la publicacion, no leemos nada:
-  // mejor cero comentarios que comentarios equivocados.
-  const anclado = document.querySelector('[data-xc-panel]');
-  const articulos = Array.from(document.querySelectorAll('article'));
-  let raiz = anclado, ambito = 'panel anclado';
-  if (!raiz) {
-    if (codigo) {
-      raiz = articulos.find(x => x.querySelector('a[href*="/' + codigo + '"]')) || null;
-      if (raiz) ambito = 'article de esta publicacion';
-    }
-    if (!raiz && articulos.length === 1) {
-      raiz = articulos[0];
-      ambito = 'article unico';
-    }
-    if (!raiz && articulos.length > 1) {
-      raiz = articulos[0];
-      ambito = 'primer article de ' + articulos.length;
-    }
-  }
-  if (!raiz) {
-    return {modo: 'instagram', comentarios: [], anclado: false,
-            ambito: 'ninguno', articulos: articulos.length};
-  }
-
   const limpio = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const pie = limpio(pieDeFoto);
 
@@ -215,20 +188,66 @@ JS_LEER_COMENTARIOS = r"""
   const salida = [];
   const vistos = new Set();
 
-  Array.from(raiz.querySelectorAll('a[href]')).forEach(a => {
-    if (!esPerfil(a)) return;
+  // ---- Como localizamos los comentarios ----
+  //
+  // Cada comentario enlaza a su propio permalink: /p/CODIGO/c/IDCOMENTARIO/.
+  // Ese enlace es el identificador perfecto, y resuelve solo tres problemas:
+  //   - acota a ESTA publicacion (las sugeridas llevan otro codigo)
+  //   - descarta el pie de foto, que no tiene permalink de comentario
+  //   - no depende de <article>, <ul> ni de ningun contenedor: en la pagina
+  //     real de Instagram no hay ni un <article>
+  const marca = codigo ? ('/p/' + codigo + '/c/') : '';
+  const anclas = marca
+    ? Array.from(document.querySelectorAll('a[href]'))
+        .filter(a => (a.getAttribute('href') || '').indexOf(marca) !== -1)
+    : [];
+
+  // Bloques a examinar: desde cada permalink subimos al bloque del comentario
+  const bloques = [];
+  anclas.forEach(anc => {
+    let cont = anc.parentElement, saltos = 0;
+    while (cont && saltos < 8) {
+      if (Array.from(cont.querySelectorAll('a[href]')).some(esPerfil)) {
+        bloques.push(cont);
+        return;
+      }
+      cont = cont.parentElement; saltos++;
+    }
+  });
+
+  let ambito = 'permalinks de comentario (' + anclas.length + ')';
+  let raiz = null;
+  if (!bloques.length) {
+    // Plan B: sin permalinks nos apoyamos en el panel anclado o en <main>.
+    // Nunca en document.body: la pagina trae «mas publicaciones» debajo.
+    const anclado = document.querySelector('[data-xc-panel]');
+    const principal = document.querySelector('main, [role="main"]');
+    const art = codigo
+      ? Array.from(document.querySelectorAll('article'))
+          .find(x => x.querySelector('a[href*="/' + codigo + '"]'))
+      : null;
+    raiz = anclado || art || principal || document.querySelector('article');
+    if (!raiz) {
+      return {modo: 'instagram', comentarios: [], anclado: false,
+              ambito: 'no se identifico la publicacion', anclas: 0};
+    }
+    ambito = anclado ? 'panel anclado'
+           : art ? 'article de esta publicacion'
+           : principal ? 'main' : 'primer article';
+    Array.from(raiz.querySelectorAll('a[href]')).filter(esPerfil)
+      .forEach(a => { if (a.parentElement) bloques.push(a.parentElement); });
+  }
+
+  bloques.forEach(bloque => {
+    const a = Array.from(bloque.querySelectorAll('a[href]')).find(esPerfil);
+    if (!a) return;
     const autor = limpio(a.innerText).split(' ')[0];
     if (!autor || autor.length > 40) return;
 
-    // Subimos hasta el bloque del comentario y, DENTRO de el, buscamos el
-    // trozo de texto de verdad.
+    // Dentro del bloque, buscamos el trozo que es el texto del comentario.
     //
     // No vale quedarse con el primer ancestro que tenga algo mas que el
-    // nombre: ese suele ser <a>ana</a><span>1 d</span>, y acabariamos
-    // guardando «1 d» como si fuera el comentario. Hay que descartar horas,
-    // botones y contadores, y quedarse con el trozo mas largo que quede.
-    // Buscamos, dentro del bloque del comentario, el trozo que es el texto.
-    //
+    // nombre: ese suele ser <a>ana</a><span>1 d</span> y guardariamos «1 d».
     // Hay que descartar tres cosas distintas:
     //   - lo que va dentro de un enlace (el nombre, los hashtags del perfil)
     //   - los envoltorios, que empiezan por el nombre de quien comenta
@@ -243,8 +262,8 @@ JS_LEER_COMENTARIOS = r"""
       return textos.length > 0 && textos.every(esRuido);
     };
 
-    let cont = a.parentElement, texto = '', saltos = 0;
-    while (cont && cont !== raiz && saltos < 6) {
+    let cont = bloque, texto = '', saltos = 0;
+    while (cont && cont !== raiz && saltos < 4) {
       const trozos = Array.from(cont.querySelectorAll('span, div, p'))
         .filter(e => !e.closest('a') && !soloRuidoDentro(e))
         .map(e => limpio(e.innerText))
@@ -275,8 +294,9 @@ JS_LEER_COMENTARIOS = r"""
     });
   });
 
-  return {modo: 'instagram', comentarios: salida, anclado: !!anclado,
-          ambito: ambito, articulos: articulos.length};
+  return {modo: 'instagram', comentarios: salida,
+          anclado: !!document.querySelector('[data-xc-panel]'),
+          ambito: ambito, anclas: anclas.length};
 }
 """
 
@@ -387,12 +407,26 @@ JS_ANCLAR_PANEL = r"""
   // Buscamos SOLO dentro del bloque de esta publicacion. Si buscaramos en
   // toda la pagina podriamos anclar el carrusel de «mas publicaciones» y
   // leeriamos comentarios de otra.
-  const articulos = Array.from(document.querySelectorAll('article'));
+  // En la pagina real de Instagram no hay <article>, asi que partimos de un
+  // permalink de comentario (/p/CODIGO/c/) y subimos buscando el contenedor
+  // con scroll propio. Si no lo hay, nos quedamos con <main>.
   let ambito = null;
   if (codigo) {
-    ambito = articulos.find(x => x.querySelector('a[href*="/' + codigo + '"]')) || null;
+    const anc = document.querySelector('a[href*="/p/' + codigo + '/c/"]');
+    if (anc) {
+      let e = anc.parentElement, saltos = 0;
+      while (e && saltos < 12) {
+        const ov = getComputedStyle(e).overflowY;
+        if ((ov === 'auto' || ov === 'scroll') && e.scrollHeight > e.clientHeight + 40) {
+          e.setAttribute('data-xc-panel', '1');
+          return {ok: true, motivo: 'panel del comentario'};
+        }
+        e = e.parentElement; saltos++;
+      }
+    }
   }
-  if (!ambito) ambito = articulos[0] || null;
+  ambito = document.querySelector('main, [role="main"]')
+        || document.querySelector('article');
   if (!ambito) return {ok: false, motivo: 'no se identifico la publicacion'};
 
   // Buscamos el contenedor con scroll propio que MAS comentarios contiene.
