@@ -128,9 +128,13 @@ class ExtractorX(ExtractorRed):
         tambien correo o @usuario. Aqui se pulsa por el usuario, para que se
         encuentre el formulario ya abierto en vez de un menu confuso.
         """
-        pagina.goto("https://x.com/i/flow/login",
-                    wait_until="domcontentloaded", timeout=45_000)
-        pagina.wait_for_timeout(3500)
+        # Si ya estamos en el acceso, NO recargamos. Cada carga cuenta como un
+        # intento para X, y volver a pulsar el boton alargaba el bloqueo en vez
+        # de ayudar.
+        if "/i/flow/login" not in pagina.url and "/login" not in pagina.url:
+            pagina.goto("https://x.com/i/flow/login",
+                        wait_until="domcontentloaded", timeout=45_000)
+            pagina.wait_for_timeout(3500)
 
         # No hay que pulsar nada: el campo ya esta en esa pantalla, debajo de
         # los tres botones y separado por un «o». Solo hay que saber buscarlo.
@@ -147,11 +151,54 @@ class ExtractorX(ExtractorRed):
         except Exception:
             pass
 
+    @staticmethod
+    def limite_de_acceso(pagina: Page) -> str:
+        """Detecta el bloqueo temporal de acceso de X.
+
+        Devuelve el aviso a mostrar, o cadena vacia si no lo hay. Importa
+        distinguirlo: no es que la contraseña este mal ni que la aplicacion
+        falle, es X frenando los intentos desde este navegador. Y cada
+        reintento reinicia la espera, asi que conviene decirlo.
+        """
+        try:
+            texto = (pagina.evaluate(
+                "() => document.body ? document.body.innerText : ''") or "").lower()
+        except Exception:
+            return ""
+        señales = (
+            "limitado temporalmente tu inicio de sesión",
+            "limitado temporalmente tu inicio de sesion",
+            "we've temporarily limited",
+            "temporarily limited your login",
+            "intenta de nuevo más tarde",
+        )
+        if any(s in texto for s in señales):
+            return (
+                "X ha limitado temporalmente los intentos de acceso DESDE ESTE "
+                "navegador (no es tu cuenta: por eso desde otro navegador si "
+                "entras).\n\n"
+                "Que hacer:\n"
+                "• Espera. Suele levantarse en un rato, a veces horas.\n"
+                "• NO vuelvas a intentarlo mientras tanto: cada intento "
+                "reinicia la espera y la alarga.\n"
+                "• Mientras, las otras tres redes funcionan con normalidad."
+            )
+        return ""
+
     def sesion_iniciada(self, pagina: Page) -> bool:
+        # Si X esta mostrando el bloqueo de intentos, no navegamos a ningun
+        # sitio: cada carga cuenta como otro intento.
+        aviso = self.limite_de_acceso(pagina)
+        if aviso:
+            raise RuntimeError(aviso)
         try:
             pagina.goto(self.url_inicio, wait_until="domcontentloaded", timeout=30_000)
             pagina.wait_for_timeout(3000)
+            if self.limite_de_acceso(pagina):
+                raise RuntimeError(self.limite_de_acceso(pagina))
             return bool(pagina.evaluate(JS_SESION_INICIADA))
+        except RuntimeError:
+            raise
         except Exception:
             return False
 
