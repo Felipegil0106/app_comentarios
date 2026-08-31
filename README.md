@@ -4,8 +4,14 @@ Aplicación de escritorio para Windows que descarga los **comentarios de texto**
 publicaciones de un perfil de redes sociales, filtrando por **rango de fechas** o
 eligiendo las publicaciones **a mano**.
 
-- ✅ **Facebook** — funcionando (publicaciones, fotos, vídeos y reels)
-- 🚧 Instagram, TikTok, X — la estructura está lista, la extracción todavía no
+- ✅ **Facebook** — publicaciones, fotos, vídeos y reels
+- ✅ **Instagram** — publicaciones, reels e IGTV
+- ✅ **TikTok** — vídeos y publicaciones de fotos
+- ✅ **X (Twitter)** — publicaciones; los «comentarios» son las respuestas
+
+> Cada red tiene sus mañas. Las particularidades de cada una están anotadas en
+> el propio código y en el historial de commits, que explica **por qué** está
+> hecho así cada trozo.
 
 ---
 
@@ -99,6 +105,20 @@ repetidos **no se duplican**.
 
 ---
 
+## 4 bis. Particularidades de cada red
+
+| Red | Fecha de la publicación | Aviso |
+|-----|------------------------|-------|
+| Facebook | `creation_time` incrustado, el más cercano al id del post | Los reels se abren en un carrusel: la app ancla el panel de comentarios |
+| Instagram | `taken_at` + `og:description` | Los comentarios se localizan por su permalink `/p/CÓDIGO/c/` |
+| TikTok | **El identificador lleva la fecha dentro** | Necesita el navegador **con ventana**; sin ella no dibuja los vídeos |
+| X | **El identificador lleva la fecha dentro** (snowflake) | Casi siempre exige iniciar sesión |
+
+Si una red te manda a su pantalla de acceso o pide una verificación, usa el
+**modo asistido**: pulsa «Abrir este perfil en el navegador», prepáralo tú en
+esa ventana, marca **«La página ya está abierta»** y dale a Buscar
+publicaciones. La app no navegará: leerá lo que dejaste.
+
 ## 5. Si algo falla
 
 | Síntoma | Qué hacer |
@@ -137,9 +157,11 @@ extraer_comentarios/
     │   └── sesion.py       Abre Chromium con sesión persistente
     ├── redes/
     │   ├── base.py         Contrato común a todas las redes
-    │   ├── facebook.py     ← el extractor de Facebook
-    │   ├── js_facebook.py  JavaScript que lee la página
-    │   ├── otras_redes.py  Esqueletos de Instagram / TikTok / X
+    │   ├── facebook.py     Extractor de Facebook
+    │   ├── instagram.py    Extractor de Instagram
+    │   ├── tiktok.py       Extractor de TikTok
+    │   ├── x.py            Extractor de X (Twitter)
+    │   ├── js_*.py         JavaScript que lee cada red
     │   └── registro.py     Catálogo de redes
     └── ui/
         ├── ventana.py      Ventana principal

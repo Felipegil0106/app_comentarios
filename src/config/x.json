@@ -1,0 +1,27 @@
+{
+  "_ayuda": [
+    "Igual que los demas: editable con el Bloc de notas.",
+    "X marca sus elementos con atributos data-testid, bastante estables.",
+    "Si algun dia cambian, aqui se corrigen sin tocar el codigo."
+  ],
+
+  "_nota_respuestas": "En X los «comentarios» son respuestas: tuits dentro de la conversacion. Cada uno es un article[data-testid=tweet].",
+  "selectores_bloque": [
+    "article[data-testid=\"tweet\"]",
+    "div[data-testid=\"cellInnerDiv\"] article"
+  ],
+  "selector_texto": "[data-testid=\"tweetText\"]",
+  "selector_autor": "[data-testid=\"User-Name\"]",
+
+  "_nota_conversacion": "El contenedor de la conversacion. Fuera de el estan las «publicaciones sugeridas», que NO son respuestas a este tuit.",
+  "selectores_conversacion": [
+    "[aria-label*=\"Conversaci\"]",
+    "[aria-label*=\"Conversation\"]",
+    "div[data-testid=\"primaryColumn\"]"
+  ],
+
+  "boton_mas_respuestas": "(mostrar m[aá]s respuestas|show more replies|mostrar m[aá]s|show more|descubrir m[aá]s)",
+  "boton_cerrar_dialogo": "(cerrar|close|ahora no|not now|omitir|skip)",
+
+  "patrones_url_publicacion": ["/status/"]
+}
