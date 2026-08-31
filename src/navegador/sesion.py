@@ -31,6 +31,37 @@ _ARGS = [
 ]
 
 
+# Playwright, en su version sincrona, solo admite UNA instancia por hilo.
+#
+# Como cada red social tiene su propia sesion de navegador (para que no se
+# mezclen las cookies), al pasar de Facebook a Instagram se creaba una segunda
+# instancia con la primera aun viva y Playwright lo rechazaba con el error
+# "It looks like you are using Playwright Sync API inside the asyncio loop".
+#
+# La solucion es compartir una unica instancia entre todas las redes: de ella
+# cuelgan tantos navegadores como haga falta.
+_playwright_compartido = None
+
+
+def obtener_playwright():
+    """Devuelve la instancia de Playwright del hilo, creandola si hace falta."""
+    global _playwright_compartido
+    if _playwright_compartido is None:
+        _playwright_compartido = sync_playwright().start()
+    return _playwright_compartido
+
+
+def cerrar_playwright() -> None:
+    """Apaga Playwright del todo. Solo al cerrar la aplicacion."""
+    global _playwright_compartido
+    if _playwright_compartido is not None:
+        try:
+            _playwright_compartido.stop()
+        except Exception:
+            pass
+        _playwright_compartido = None
+
+
 class SesionNavegador:
     """Abre y mantiene vivo un navegador para una red social."""
 
@@ -49,7 +80,7 @@ class SesionNavegador:
         if self._pagina and not self._pagina.is_closed():
             return self._pagina
 
-        self._playwright = sync_playwright().start()
+        self._playwright = obtener_playwright()
         perfil = carpeta_perfil_navegador(self.red)
 
         # Con el navegador visible dejamos que la ventana mande (no_viewport);
@@ -107,15 +138,15 @@ class SesionNavegador:
         return self._pagina is not None and not self._pagina.is_closed()
 
     def cerrar(self) -> None:
-        """Cierra el navegador. Las cookies quedan guardadas en el perfil."""
+        """Cierra este navegador. Las cookies quedan guardadas en el perfil.
+
+        No se apaga Playwright: esta compartido con las demas redes y otra
+        podria estar usandolo. Se apaga al cerrar la aplicacion, con
+        `cerrar_playwright()`.
+        """
         try:
             if self._contexto:
                 self._contexto.close()
-        except Exception:
-            pass
-        try:
-            if self._playwright:
-                self._playwright.stop()
         except Exception:
             pass
         self._contexto = None

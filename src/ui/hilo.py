@@ -20,7 +20,7 @@ from PySide6.QtCore import QThread, Signal
 
 from ..core.base_datos import BaseDatos
 from ..core.modelos import Publicacion
-from ..navegador.sesion import SesionNavegador
+from ..navegador.sesion import SesionNavegador, cerrar_playwright
 from ..redes import registro
 from ..redes.base import OpcionesExtraccion, Progreso
 
@@ -106,6 +106,9 @@ class HiloNavegador(QThread):
         for sesion in self._sesiones.values():
             sesion.cerrar()
         self._sesiones.clear()
+        # Playwright se comparte entre redes, asi que solo se apaga aqui,
+        # cuando el hilo termina de verdad.
+        cerrar_playwright()
 
     # ------------------------------------------------------------- ejecucion
 
