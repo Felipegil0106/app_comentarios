@@ -36,6 +36,7 @@ from ..core.modelos import Comentario, Publicacion
 from ..core.rutas import CARPETA_CONFIG, CARPETA_DIAGNOSTICO
 from .base import ExtractorRed, OpcionesExtraccion, Progreso
 from .js_instagram import (
+    JS_ABRIR_COMENTARIOS,
     JS_ALTURA_PAGINA,
     JS_ANCLAR_PANEL,
     JS_DATOS_PUBLICACION,
@@ -491,11 +492,24 @@ class ExtractorInstagram(ExtractorRed):
         opciones: OpcionesExtraccion,
         progreso: Progreso,
     ) -> list[Comentario]:
-        progreso.log(f"Abriendo publicacion: {publicacion.url}")
         codigo = self._codigo_publicacion(publicacion.url)
-        pagina.goto(publicacion.url, wait_until="domcontentloaded", timeout=60_000)
+        # Para leer comentarios usamos SIEMPRE la forma /p/CODIGO/.
+        #
+        # Abrir /reel/CODIGO/ no abre la publicacion: abre el visor inmersivo
+        # de Reels, un carrusel que carga catorce publicaciones (incluidas
+        # reels de otras cuentas) y con el panel de comentarios cerrado. En
+        # cambio /p/CODIGO/ vale para cualquier publicacion y da la vista
+        # normal, con los comentarios a la vista.
+        url_comentarios = f"https://www.instagram.com/p/{codigo}/" if codigo \
+            else publicacion.url
+        progreso.log(f"Abriendo publicacion: {url_comentarios}")
+        pagina.goto(url_comentarios, wait_until="domcontentloaded", timeout=60_000)
         pagina.wait_for_timeout(2500)
         self._cerrar_estorbos(pagina)
+
+        en_visor = "/reel/" in pagina.url.lower()
+        if en_visor:
+            progreso.log("   Acabamos en el visor de Reels; abro el panel de comentarios.")
 
         fecha_publicacion_iso = ""
         anunciados = ""
@@ -523,13 +537,32 @@ class ExtractorInstagram(ExtractorRed):
             progreso.log(f"   ↷ Omitida: es del {exacta:%d/%m/%Y}.")
             return []
 
+        # El pie de foto tiene la misma forma que un comentario; lo pasamos al
+        # lector para que lo reconozca y lo descarte.
+        pie_de_foto = publicacion.texto or ""
+
         acumulados: dict[str, dict] = {}
         sin_nuevos = 0
         anclado_avisado = False
+        abierto_avisado = False
 
         for vuelta in range(1, 81):
             if progreso.cancelado():
                 break
+
+            # Si estamos en el visor de Reels, el panel viene cerrado: hay que
+            # pulsar «Comentario» o no habra nada que leer. Se pulsa el que
+            # esta en pantalla, que es el de la publicacion activa.
+            if en_visor and not acumulados:
+                try:
+                    abierto = pagina.evaluate(
+                        JS_ABRIR_COMENTARIOS, self.cfg["boton_abrir_comentarios"])
+                except Exception:
+                    abierto = ""
+                if abierto and not abierto_avisado:
+                    abierto_avisado = True
+                    progreso.log(f"   Panel abierto con «{abierto}».")
+                    pagina.wait_for_timeout(2500)
 
             pulsados = 0
             for clave, tope in (
@@ -554,8 +587,7 @@ class ExtractorInstagram(ExtractorRed):
                 anclado_avisado = True
                 progreso.log("   Panel de comentarios anclado a esta publicacion.")
 
-            crudos, _ = self._leer_comentarios_crudos(
-                pagina, codigo, fecha_publicacion_iso)
+            crudos, _ = self._leer_comentarios_crudos(pagina, codigo, pie_de_foto)
             nuevos = 0
             for c in crudos:
                 clave = f"{(c.get('autor') or '').strip()}|{(c.get('texto') or '').strip()}"
@@ -634,11 +666,11 @@ class ExtractorInstagram(ExtractorRed):
     # -------------------------------------------------------------- auxiliares
 
     def _leer_comentarios_crudos(
-        self, pagina: Page, codigo: str, fecha_publicacion: str
+        self, pagina: Page, codigo: str, pie_de_foto: str
     ) -> tuple[list[dict], str]:
         try:
             datos = pagina.evaluate(
-                JS_LEER_COMENTARIOS, [codigo, fecha_publicacion])
+                JS_LEER_COMENTARIOS, [codigo, pie_de_foto])
         except Exception:
             return [], "error"
         if isinstance(datos, dict):

@@ -14,6 +14,9 @@
 
   "boton_cerrar_dialogo": "(cerrar|close|ahora no|not now)",
 
+  "_nota_abrir_comentarios": "Si acabamos en el visor de Reels, el panel de comentarios viene cerrado. Este es el aria-label del boton que hay que pulsar. Ojo: en el visor hay uno por cada reel cargado, asi que solo se pulsa el que esta en pantalla.",
+  "boton_abrir_comentarios": "^(comentario|comentarios|comment|comments)$",
+
   "_nota_publicaciones": "Rutas que identifican una publicacion de Instagram: /p/ (foto o carrusel), /reel/ (reel) y /tv/ (IGTV, ya en desuso).",
   "patrones_url_publicacion": ["/p/", "/reel/", "/tv/"]
 }

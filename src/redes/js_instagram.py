@@ -158,6 +158,70 @@ JS_DATOS_PUBLICACION = r"""
 # Leer los comentarios cargados
 # ---------------------------------------------------------------------------
 JS_LEER_COMENTARIOS = r"""
+([codigo, pieDeFoto]) => {
+  // IMPORTANTE: no se puede exigir un <time> en cada comentario. Instagram
+  // dejo de pintarlos (medido: cero en toda la pagina), asi que un lector que
+  // dependiera de ellos no encontraria nada aunque el panel estuviera abierto.
+  //
+  // Un comentario se reconoce por: enlace al perfil de quien comenta + texto
+  // que no sea solo el nombre. El pie de foto tiene esa misma forma, y se
+  // descarta comparandolo con el que anuncia og:description.
+  const anclado = document.querySelector('[data-xc-panel]');
+  const raiz = anclado || document.querySelector('article') || document.body;
+
+  const limpio = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const pie = limpio(pieDeFoto);
+
+  const esPerfil = (a) => {
+    const h = a.getAttribute('href') || '';
+    if (!/^\/[^/?#]+\/?$/.test(h)) return false;
+    return !/^\/(p|reel|reels|tv|explore|accounts|direct|stories)\/?$/i.test(h);
+  };
+
+  const salida = [];
+  const vistos = new Set();
+
+  Array.from(raiz.querySelectorAll('a[href]')).forEach(a => {
+    if (!esPerfil(a)) return;
+    const autor = limpio(a.innerText).split(' ')[0];
+    if (!autor || autor.length > 40) return;
+
+    // Subimos hasta el bloque que ademas del nombre tiene el comentario
+    let cont = a.parentElement, texto = '', saltos = 0;
+    while (cont && cont !== raiz && saltos < 6) {
+      const t = limpio(cont.innerText);
+      if (t && t.length > autor.length + 2) {
+        let cand = t.startsWith(autor) ? t.slice(autor.length) : t;
+        cand = cand.replace(/^\s*(verificado|verified)\s*/i, '').trim();
+        if (cand && cand.length < 3000) { texto = cand; break; }
+      }
+      cont = cont.parentElement; saltos++;
+    }
+    if (!texto) return;
+
+    // El pie de foto NO es un comentario
+    if (pie && (texto === pie || texto.startsWith(pie.slice(0, 40)))) return;
+
+    const clave = autor + '|' + texto;
+    if (vistos.has(clave)) return;
+    vistos.add(clave);
+
+    const t = cont ? cont.querySelector('time[datetime]') : null;
+
+    salida.push({
+      autor: autor,
+      texto: texto,
+      fecha: t ? (t.getAttribute('datetime') || '') : '',
+      es_respuesta: false,
+      reacciones: 0
+    });
+  });
+
+  return {modo: 'instagram', comentarios: salida, anclado: !!anclado};
+}
+"""
+
+JS_LEER_COMENTARIOS_ANTIGUO = r"""
 ([codigo, fechaPublicacion]) => {
   // Si hay panel anclado, solo leemos dentro de el (misma leccion que en
   // Facebook: evita mezclar con publicaciones sugeridas de mas abajo).
@@ -230,6 +294,31 @@ JS_LEER_COMENTARIOS = r"""
 }
 """
 
+# Abre el panel de comentarios cuando acabamos en el visor de Reels.
+#
+# Ese visor es un carrusel: carga catorce publicaciones a la vez, incluidas
+# reels de OTRAS cuentas, y todas traen su boton «Comentario». Por eso solo se
+# pulsa el que esta visible en pantalla, que es el de la publicacion activa.
+JS_ABRIR_COMENTARIOS = r"""
+(patron) => {
+  const re = new RegExp(patron, 'i');
+  const enPantalla = (el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    const alto = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0);
+    return alto >= Math.min(r.height, 8);
+  };
+  for (const el of Array.from(document.querySelectorAll('[aria-label]'))) {
+    const etiqueta = (el.getAttribute('aria-label') || '').trim();
+    if (!re.test(etiqueta)) continue;
+    if (!enPantalla(el)) continue;
+    const objetivo = el.closest('[role="button"], button, a, div[tabindex]') || el;
+    try { objetivo.click(); return etiqueta; } catch (e) {}
+  }
+  return '';
+}
+"""
+
 # Ancla el contenedor con scroll propio donde viven los comentarios
 JS_ANCLAR_PANEL = r"""
 () => {
@@ -241,13 +330,19 @@ JS_ANCLAR_PANEL = r"""
   // No vale partir del ultimo <time> de la pagina y subir: ese suele estar en
   // las «mas publicaciones de este perfil» del final, fuera del area de
   // comentarios, y entonces no se encuentra ningun panel.
+  // Contamos enlaces a perfil, no <time>: Instagram ya no pinta ninguno.
+  const esPerfil = (a) => {
+    const h = a.getAttribute('href') || '';
+    return /^\/[^/?#]+\/?$/.test(h)
+        && !/^\/(p|reel|reels|tv|explore|accounts|direct|stories)\/?$/i.test(h);
+  };
   let mejor = null, mejorN = 0;
   document.querySelectorAll('div, ul, section').forEach(d => {
     const ov = getComputedStyle(d).overflowY;
     if (ov !== 'auto' && ov !== 'scroll') return;
     if (d.clientHeight < 120) return;
     if (d.scrollHeight <= d.clientHeight + 40) return;
-    const n = d.querySelectorAll('time[datetime]').length;
+    const n = Array.from(d.querySelectorAll('a[href]')).filter(esPerfil).length;
     if (n > mejorN) { mejorN = n; mejor = d; }
   });
 
