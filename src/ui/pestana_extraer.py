@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..core.rutas import RAIZ_PROYECTO
 from ..redes import registro
 from ..redes.base import OpcionesExtraccion
 from .hilo import HiloNavegador, Tarea
@@ -96,6 +97,15 @@ class PestanaExtraer(QWidget):
 
         self.btn_login = QPushButton("Abrir navegador e iniciar sesion")
         self.btn_verificar = QPushButton("Ya inicie sesion — comprobar")
+        self.btn_chrome_normal = QPushButton("🔓 Iniciar sesion en Chrome normal")
+        self.btn_chrome_normal.setToolTip(
+            "Abre un Chrome CORRIENTE, sin automatizacion, con una carpeta de\n"
+            "perfil aparte. Sirve cuando la red limita los intentos de acceso\n"
+            "desde el navegador de la aplicacion (X lo hace):\n"
+            "  1. Inicias sesion ahi como en cualquier navegador\n"
+            "  2. Cierras esa ventana\n"
+            "  3. La aplicacion reutiliza esa carpeta, ya con la sesion dentro"
+        )
 
         fila.addWidget(QLabel("Red:"))
         fila.addWidget(self.cmb_red)
@@ -118,6 +128,7 @@ class PestanaExtraer(QWidget):
             "Cierra la ventana del navegador. La sesion queda guardada:\n"
             "la proxima vez no tendras que volver a iniciar sesion."
         )
+        rescate.addWidget(self.btn_chrome_normal)
         rescate.addStretch(1)
         rescate.addWidget(self.btn_recargar)
         rescate.addWidget(self.btn_cerrar_navegador)
@@ -424,6 +435,7 @@ class PestanaExtraer(QWidget):
         self.cmb_red.currentIndexChanged.connect(self._cambio_red)
         self.btn_login.clicked.connect(self._abrir_login)
         self.btn_verificar.clicked.connect(self._verificar_sesion)
+        self.btn_chrome_normal.clicked.connect(self._abrir_chrome_normal)
         self.btn_abrir_perfil.clicked.connect(self._abrir_perfil)
         self.btn_recargar.clicked.connect(self._recargar_pagina)
         self.btn_cerrar_navegador.clicked.connect(self._cerrar_navegador)
@@ -438,6 +450,37 @@ class PestanaExtraer(QWidget):
         self._cambio_red()
 
     # ------------------------------------------------------------------ acciones
+
+    def _abrir_chrome_normal(self) -> None:
+        """Abre un Chrome corriente para que el usuario inicie sesion ahi.
+
+        Es la salida cuando una red limita los intentos de acceso desde el
+        navegador que controla la aplicacion: ese Chrome no esta automatizado,
+        asi que la red lo trata como cualquier otro. Despues la aplicacion
+        reutiliza la misma carpeta, ya con la sesion dentro.
+        """
+        from ..navegador.sesion import abrir_chrome_normal
+
+        carpeta = self.txt_perfil_nav.text().strip()
+        if not carpeta:
+            carpeta = str(RAIZ_PROYECTO / "perfil_navegador")
+            self.txt_perfil_nav.setText(carpeta)
+
+        extractor = registro.obtener(self.red_actual)
+        error = abrir_chrome_normal(carpeta, extractor.url_inicio)
+        if error:
+            self.escribir(f"⚠ {error}")
+            return
+
+        self.escribir(
+            f"🔓 Se abrio un Chrome NORMAL en {carpeta}\n"
+            f"   1. Inicia sesion ahi en {extractor.etiqueta}, como en cualquier "
+            "navegador.\n"
+            "   2. Cuando termines, CIERRA esa ventana de Chrome del todo.\n"
+            "   3. Vuelve aqui y pulsa «Ya inicie sesion — comprobar».\n"
+            "   La carpeta ya quedo puesta en Opciones avanzadas, asi que la "
+            "aplicacion usara esa sesion."
+        )
 
     def _elegir_perfil(self) -> None:
         carpeta = QFileDialog.getExistingDirectory(

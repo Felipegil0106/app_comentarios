@@ -67,6 +67,63 @@ def obtener_playwright():
     return _playwright_compartido
 
 
+def ruta_chrome() -> str:
+    """Donde esta instalado Google Chrome, o cadena vacia si no aparece."""
+    import os
+
+    candidatos = [
+        os.path.join(os.environ.get("ProgramFiles", ""),
+                     "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(os.environ.get("ProgramFiles(x86)", ""),
+                     "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(os.environ.get("LocalAppData", ""),
+                     "Google", "Chrome", "Application", "chrome.exe"),
+    ]
+    for ruta in candidatos:
+        if ruta and Path(ruta).is_file():
+            return ruta
+    return ""
+
+
+def abrir_chrome_normal(carpeta_perfil: str, url: str = "") -> str:
+    """Abre un Chrome CORRIENTE (sin automatizacion) con esa carpeta de perfil.
+
+    Es la pieza que resuelve el bloqueo de accesos: algunas redes limitan los
+    intentos desde el navegador que controla la aplicacion, pero no desde uno
+    normal. Se inicia sesion aqui, se cierra, y luego la aplicacion reutiliza
+    la misma carpeta con la sesion ya dentro.
+
+    Devuelve un mensaje de error, o cadena vacia si se abrio bien.
+    """
+    import subprocess
+
+    chrome = ruta_chrome()
+    if not chrome:
+        return (
+            "No se encontro Google Chrome en este equipo. Instalalo desde "
+            "google.com/chrome y vuelve a intentarlo."
+        )
+    carpeta = Path(carpeta_perfil)
+    try:
+        carpeta.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        return f"No se pudo crear la carpeta del perfil: {e}"
+
+    orden = [
+        chrome,
+        f"--user-data-dir={carpeta}",
+        "--no-first-run",
+        "--no-default-browser-check",
+    ]
+    if url:
+        orden.append(url)
+    try:
+        subprocess.Popen(orden, close_fds=True)
+    except Exception as e:
+        return f"No se pudo abrir Chrome: {e}"
+    return ""
+
+
 def cerrar_playwright() -> None:
     """Apaga Playwright del todo. Solo al cerrar la aplicacion."""
     global _playwright_compartido
