@@ -30,6 +30,7 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
 
+from ..core.fechas import interpretar_fecha
 from ..core.limpieza import limpiar_autor, limpiar_texto
 from ..core.modelos import Comentario, Publicacion
 from ..core.rutas import CARPETA_CONFIG, CARPETA_DIAGNOSTICO
@@ -67,6 +68,47 @@ def _fecha_iso(valor: str) -> datetime | None:
         return d
     except ValueError:
         return None
+
+
+def _fecha_de_datos(datos: dict) -> tuple[datetime | None, str]:
+    """Decide la fecha de una publicacion a partir de lo leido en su pagina.
+
+    Tres fuentes, de mas a menos fiable:
+
+      1. «taken_at»: el sello de tiempo que Instagram incrusta. Da la hora
+         exacta. Trae la misma trampa que Facebook (hay varios en la pagina),
+         ya resuelta en el JavaScript quedandose con el mas cercano al codigo.
+      2. «og:description»: las etiquetas og: describen SIEMPRE la publicacion
+         de esta pagina, asi que no hay ambiguedad. Solo da el dia, sin hora.
+      3. <time datetime>: por si Instagram vuelve a usarlo algun dia.
+    """
+    if not datos:
+        return None, "sin datos"
+
+    epoch = datos.get("epoch")
+    if epoch:
+        try:
+            return datetime.fromtimestamp(int(epoch)), datos.get("confianza", "taken_at")
+        except (OSError, OverflowError, ValueError):
+            pass
+
+    texto_og = (datos.get("fecha_og") or "").strip()
+    if texto_og:
+        f = interpretar_fecha(texto_og)
+        if f:
+            return f, "og_description"
+
+    iso = datos.get("fecha") or ""
+    if iso:
+        f = _fecha_iso(iso)
+        if f:
+            return f, datos.get("confianza", "time")
+
+    return None, (
+        f"sin fecha ({datos.get('taken_at_en_pagina', 0)} taken_at, "
+        f"{datos.get('tiempos_en_pagina', 0)} time, "
+        f"og={'si' if texto_og else 'no'})"
+    )
 
 
 class ExtractorInstagram(ExtractorRed):
@@ -378,19 +420,14 @@ class ExtractorInstagram(ExtractorRed):
             for intento in range(5):
                 aux.wait_for_timeout(500 if intento == 0 else 800)
                 datos = aux.evaluate(JS_DATOS_PUBLICACION, codigo) or {}
-                if datos.get("fecha"):
+                if datos.get("epoch") or datos.get("fecha_og") or datos.get("fecha"):
                     break
-            if datos.get("fecha"):
-                fecha = _fecha_iso(datos["fecha"])
-                if fecha:
-                    return fecha, datos.get("confianza", "?")
-                return None, f"fecha ilegible: {datos['fecha'][:30]}"
+            fecha, motivo = _fecha_de_datos(datos)
+            if fecha:
+                return fecha, motivo
             if "/accounts/login" in aux.url:
                 return None, "Instagram pidio iniciar sesion"
-            return None, (
-                f"sin fecha en la pagina "
-                f"({datos.get('tiempos_en_pagina', 0)} etiquetas de tiempo)"
-            )
+            return None, motivo
         except Exception as e:
             return None, f"error al abrirla: {type(e).__name__}"
 
@@ -418,16 +455,16 @@ class ExtractorInstagram(ExtractorRed):
                 for intento in range(4):
                     pagina.wait_for_timeout(350 if intento == 0 else 550)
                     datos = pagina.evaluate(JS_DATOS_PUBLICACION, codigo) or {}
-                    if datos.get("fecha"):
+                    if datos.get("epoch") or datos.get("fecha_og"):
                         break
-                fecha = _fecha_iso(datos.get("fecha", ""))
+                fecha, motivo = _fecha_de_datos(datos)
                 if fecha:
                     pub.fecha = fecha
                     pub.fecha_aproximada = False
                     pub.nota = ""
                     confirmadas += 1
                 else:
-                    pub.nota = "No se pudo leer la fecha de esta publicacion"
+                    pub.nota = f"No se pudo leer la fecha ({motivo})"
                 if datos.get("texto") and not pub.texto:
                     pub.texto = datos["texto"]
 
@@ -461,16 +498,19 @@ class ExtractorInstagram(ExtractorRed):
         self._cerrar_estorbos(pagina)
 
         fecha_publicacion_iso = ""
+        anunciados = ""
         try:
             datos = pagina.evaluate(JS_DATOS_PUBLICACION, codigo) or {}
             fecha_publicacion_iso = datos.get("fecha", "") or ""
-            exacta = _fecha_iso(fecha_publicacion_iso)
+            exacta, motivo = _fecha_de_datos(datos)
             if exacta:
                 publicacion.fecha = exacta
+                publicacion.fecha_aproximada = False
             if datos.get("texto") and not publicacion.texto:
                 publicacion.texto = datos["texto"]
-            if datos.get("anunciados"):
-                progreso.log(f"   Instagram anuncia: {datos['anunciados']}")
+            anunciados = datos.get("anunciados") or ""
+            if anunciados:
+                progreso.log(f"   Instagram anuncia {anunciados} comentarios.")
         except Exception:
             exacta = None
 
@@ -582,7 +622,13 @@ class ExtractorInstagram(ExtractorRed):
                 "⚠ No se encontro ningun comentario. Guarde la pagina en:\n"
                 f"   {ruta}"
             )
-        progreso.log(f"Comentarios de texto extraidos: {len(comentarios)}")
+        if anunciados:
+            progreso.log(
+                f"Comentarios de texto extraidos: {len(comentarios)} "
+                f"(Instagram anunciaba {anunciados})"
+            )
+        else:
+            progreso.log(f"Comentarios de texto extraidos: {len(comentarios)}")
         return comentarios
 
     # -------------------------------------------------------------- auxiliares

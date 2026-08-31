@@ -46,8 +46,44 @@ JS_ENLACES_PUBLICACIONES = r"""
 # ---------------------------------------------------------------------------
 JS_DATOS_PUBLICACION = r"""
 (codigo) => {
+  const html = document.documentElement.innerHTML;
   const tiempos = Array.from(document.querySelectorAll('time[datetime]'));
-  let fecha = '', confianza = 'ninguna';
+  let fecha = '', confianza = 'ninguna', epoch = null;
+
+  // ---- Regla 0: "taken_at", el sello de tiempo que Instagram incrusta ----
+  //
+  // Es el equivalente al creation_time de Facebook, y trae la MISMA trampa:
+  // en la pagina hay varios, uno por cada publicacion precargada. Medido
+  // sobre una pagina real, el de la publicacion estaba a 2.848 caracteres de
+  // su codigo y el ajeno a 32.204. Nos quedamos con el mas cercano.
+  const tas = [];
+  const reTa = /"taken_at"\s*:\s*(\d{9,11})/g;
+  let m;
+  while ((m = reTa.exec(html)) !== null) tas.push([m.index, parseInt(m[1], 10)]);
+
+  if (tas.length === 1) {
+    epoch = tas[0][1];
+    confianza = 'taken_at_unico';
+  } else if (tas.length > 1 && codigo) {
+    const posiciones = [];
+    let desde = 0, k;
+    while ((k = html.indexOf(codigo, desde)) !== -1) {
+      posiciones.push(k);
+      desde = k + 1;
+      if (posiciones.length > 500) break;
+    }
+    let mejor = null, mejorDist = Infinity;
+    for (const par of tas) {
+      for (const q of posiciones) {
+        const d = Math.abs(par[0] - q);
+        if (d < mejorDist) { mejorDist = d; mejor = par[1]; }
+      }
+    }
+    if (mejor !== null && mejorDist <= 8000) {
+      epoch = mejor;
+      confianza = 'taken_at_por_codigo';
+    }
+  }
 
   // Regla 1 (la buena): el <time> de la publicacion cuelga de un enlace que
   // apunta a ESTA publicacion. Los <time> de los comentarios cuelgan del
@@ -88,20 +124,33 @@ JS_DATOS_PUBLICACION = r"""
     if (fecha) confianza = 'primera_de_la_pagina';
   }
 
-  // Texto del pie de foto (para reconocer la publicacion en la tabla)
-  let texto = '';
+  // ---- og:description: la fuente mas honesta que tiene Instagram ----
+  //
+  // Las etiquetas og: describen SIEMPRE la publicacion de esta pagina, asi
+  // que aqui no hay ambiguedad posible. Formato real:
+  //   "305 likes, 5 comments - medellinnvivo el June 24, 2026: "texto""
+  // De ahi salen la fecha, el numero de comentarios y el pie de foto.
+  let og = '';
   const meta = document.querySelector('meta[property="og:description"]');
-  if (meta) texto = (meta.getAttribute('content') || '').trim();
+  if (meta) og = (meta.getAttribute('content') || '').trim();
 
-  // Numero de comentarios que Instagram anuncia, si esta a la vista
-  let anunciados = '';
-  const cand = Array.from(document.querySelectorAll('span, a'))
-    .map(e => (e.innerText || '').trim())
-    .find(t => t && t.length < 40 && /comentario|comment/i.test(t) && /\d/.test(t));
-  if (cand) anunciados = cand;
+  let fechaOg = '', anunciados = '';
+  if (og) {
+    const mf = og.match(/\b(?:el|on)\s+(.{4,40}?)\s*:/i);
+    if (mf) fechaOg = mf[1].trim();
+    const mc = og.match(/(\d[\d.,]*)\s*(?:comment|comentario)/i);
+    if (mc) anunciados = mc[1];
+  }
 
-  return {fecha: fecha, confianza: confianza, tiempos_en_pagina: tiempos.length,
-          texto: texto.slice(0, 400), anunciados: anunciados, url: location.href};
+  // Texto del pie de foto: lo que va tras los dos puntos
+  let texto = og;
+  const mt = og.match(/:\s*"([^"]*)"/);
+  if (mt) texto = mt[1];
+
+  return {epoch: epoch, fecha: fecha, fecha_og: fechaOg, confianza: confianza,
+          tiempos_en_pagina: tiempos.length, taken_at_en_pagina: tas.length,
+          texto: (texto || '').slice(0, 400), anunciados: anunciados,
+          url: location.href};
 }
 """
 
