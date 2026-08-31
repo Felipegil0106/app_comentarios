@@ -22,13 +22,48 @@ from ..core.rutas import carpeta_perfil_navegador
 # Es un truco antiguo para pasar desapercibido, pero rompe las paginas
 # modernas de Facebook: la verificacion en dos pasos y algunos dialogos se
 # quedan en blanco porque su codigo necesita el aislamiento de origenes.
+# Tampoco va "--disable-blink-features=AutomationControlled": Chrome muestra
+# por el una barra amarilla de advertencia, de modo que un parametro puesto
+# para disimular acababa anunciando lo contrario. Lo que hacia ya lo cubre el
+# retoque de navigator.webdriver de mas abajo.
 _ARGS = [
-    "--disable-blink-features=AutomationControlled",
     "--no-default-browser-check",
     "--no-first-run",
     "--disable-notifications",
     "--start-maximized",
 ]
+
+# Retoques que se aplican a cada pagina ANTES de que corra el codigo del sitio.
+_GUION_INICIAL = r"""
+// 1. navigator.webdriver delata al navegador automatizado
+Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+
+// 2. Trampas de "debugger" en bucle.
+//
+//    Algunas paginas (TikTok es el caso mas claro) lanzan sentencias
+//    `debugger` una y otra vez para CONGELAR la pestaña. El sintoma es el
+//    aviso «El depurador se ha pausado en otra pestaña» y la extraccion
+//    detenida en seco. Aqui desactivamos solo eso: las funciones que se
+//    construyen a partir de un texto que contiene `debugger` pasan a no
+//    hacer nada. El resto de la pagina sigue funcionando igual.
+(() => {
+  const Original = Function;
+  const esTrampa = (args) => args.some(
+    a => typeof a === 'string' && a.indexOf('debugger') !== -1);
+  const vacia = function () {};
+  try {
+    window.Function = new Proxy(Original, {
+      construct(destino, args) {
+        return esTrampa(args) ? vacia : Reflect.construct(destino, args);
+      },
+      apply(destino, esto, args) {
+        return esTrampa(args) ? vacia : Reflect.apply(destino, esto, args);
+      }
+    });
+    window.Function.prototype = Original.prototype;
+  } catch (e) {}
+})();
+"""
 
 
 # Playwright, en su version sincrona, solo admite UNA instancia por hilo.
@@ -123,10 +158,9 @@ class SesionNavegador:
             else self._contexto.new_page()
         )
 
-        # Pequeño parche para que la pagina no detecte "navigator.webdriver"
-        self._contexto.add_init_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-        )
+        # Se aplica a TODAS las pestañas del contexto, incluidas las auxiliares
+        # que se abren despues, y en cada navegacion.
+        self._contexto.add_init_script(_GUION_INICIAL)
         return self._pagina
 
     @property
