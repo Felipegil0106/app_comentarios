@@ -49,6 +49,13 @@ JS_ESTADO_PAGINA = r"""
     enlaces_video: document.querySelectorAll('a[href*="/video/"], a[href*="/photo/"]').length,
     hay_login: !!document.querySelector(
       'input[name="username"], [data-e2e="login-button"], form[action*="login"]'),
+    // ¿Estamos dentro? Si en la barra pone «Iniciar sesion» y no hay icono de
+    // perfil, es que no. TikTok esconde la cuadricula de videos a las visitas
+    // sin cuenta, y sin esto parecia que el perfil no tuviera publicaciones.
+    hay_sesion: !!document.querySelector(
+      '[data-e2e="profile-icon"], [data-e2e="nav-profile"], a[href*="/upload"]')
+      && !/inicia(r)? sesi[oó]n|log in/i.test(
+           (document.querySelector('header, nav') || {innerText: ''}).innerText || ''),
     hay_captcha: !!document.querySelector(
       '[id*="captcha"], [class*="captcha"], [class*="Captcha"]')
       || hayTexto(['verifica', 'arrastra', 'desliza', 'verify to continue',

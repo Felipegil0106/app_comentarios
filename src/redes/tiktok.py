@@ -516,9 +516,11 @@ class ExtractorTikTok(ExtractorRed):
                     e = {}
                 # Cualquiera de estas tres cosas significa que ya hay algo que
                 # mirar: videos, un muro de acceso o una verificacion.
-                if e.get("enlaces_video") or e.get("hay_login") or e.get("hay_captcha"):
-                    return True
-                if e.get("enlaces_total", 0) > 5 and not e.get("parece_vacio"):
+                # Solo los videos valen como «ya cargo». Contar enlaces a
+                # secas no sirve: la barra lateral de TikTok ya trae nueve
+                # (Buscar, Para ti, Explorar…) y daba la carga por buena
+                # cuando todavia no habia ni una publicacion.
+                if e.get("enlaces_video") or e.get("hay_captcha"):
                     return True
                 pagina.wait_for_timeout(1000)
 
@@ -584,7 +586,20 @@ class ExtractorTikTok(ExtractorRed):
                     "      Puede ser un bloqueo de TikTok. Mira la ventana del "
                     "navegador: si hay una verificacion, resuelvela a mano."
                 )
-        elif not e.get("enlaces_video"):
+        elif not e.get("hay_sesion"):
+            # Caso mas frecuente: el perfil se ve (nombre, foto) pero la
+            # cuadricula de videos esta reservada a quien tiene cuenta.
+            progreso.log(
+                "   ⚠ La pagina cargo, pero TikTok NO muestra los videos "
+                "porque no has iniciado sesion."
+            )
+            progreso.log(
+                "      Dos salidas: 1) «Abrir navegador e iniciar sesion» en el "
+                "Paso 1; o 2) Paso 4 → «Pegar URLs de publicaciones». En TikTok "
+                "la segunda funciona igual de bien, porque la fecha sale del "
+                "identificador del video."
+            )
+        else:
             progreso.log(
                 "   ⚠ La pagina cargo pero no trae enlaces a videos. "
                 f"Primeras palabras: «{str(e.get('texto'))[:120]}»"
