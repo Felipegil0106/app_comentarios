@@ -99,6 +99,15 @@ class ExtractorTikTok(ExtractorRed):
 
     # ------------------------------------------------------------------ sesion
 
+    def abrir_login(self, pagina: Page) -> None:
+        """Va directo a la pantalla de acceso.
+
+        La portada de TikTok muestra el «Para ti» y el acceso queda en un
+        dialogo que no siempre aparece solo; asi es mas directo.
+        """
+        pagina.goto("https://www.tiktok.com/login",
+                    wait_until="domcontentloaded", timeout=45_000)
+
     def sesion_iniciada(self, pagina: Page) -> bool:
         try:
             pagina.goto(self.url_inicio, wait_until="domcontentloaded", timeout=30_000)
