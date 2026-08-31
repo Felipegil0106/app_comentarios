@@ -10,6 +10,7 @@ datos directamente en la ventana de Facebook/Instagram/etc.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
@@ -81,8 +82,16 @@ class SesionNavegador:
     """Abre y mantiene vivo un navegador para una red social."""
 
     def __init__(self, red: str, visible: bool = True, ralentizar_ms: int = 0,
-                 usar_chrome: bool = True):
+                 usar_chrome: bool = True, carpeta_perfil: str = ""):
         self.red = red
+        # Carpeta de perfil propia, si el usuario eligio una.
+        #
+        # Sirve para el caso en que una red limita los intentos de acceso
+        # desde el navegador de la aplicacion (X lo hace). En vez de pelear
+        # con eso, se inicia sesion UNA vez en un Chrome normal que use esa
+        # carpeta, y despues la aplicacion abre esa misma carpeta: la sesion
+        # ya esta dentro y no hay ningun intento de acceso que limitar.
+        self.carpeta_perfil = (carpeta_perfil or "").strip()
         self.visible = visible
         self.ralentizar_ms = ralentizar_ms
         # Usar el Chrome instalado en el equipo en vez del Chromium que trae
@@ -103,7 +112,11 @@ class SesionNavegador:
             return self._pagina
 
         self._playwright = obtener_playwright()
-        perfil = carpeta_perfil_navegador(self.red)
+        if self.carpeta_perfil:
+            perfil = Path(self.carpeta_perfil)
+            perfil.mkdir(parents=True, exist_ok=True)
+        else:
+            perfil = carpeta_perfil_navegador(self.red)
 
         # Con el navegador visible dejamos que la ventana mande (no_viewport);
         # oculto le damos un tamaño fijo grande para que Facebook cargue la

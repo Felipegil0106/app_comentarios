@@ -7,6 +7,7 @@ escoge el rango de fechas y decide COMO quiere elegir las publicaciones.
 from __future__ import annotations
 
 from datetime import datetime, time
+from pathlib import Path
 
 from PySide6.QtCore import QDate, Signal
 from PySide6.QtWidgets import (
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDateEdit,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -296,6 +298,19 @@ class PestanaExtraer(QWidget):
         self.chk_visible = QCheckBox("Mostrar el navegador mientras trabaja")
         self.chk_visible.setChecked(True)
 
+        self.txt_perfil_nav = QLineEdit()
+        self.txt_perfil_nav.setPlaceholderText(
+            "(opcional) carpeta de un Chrome donde ya iniciaste sesion")
+        self.txt_perfil_nav.setClearButtonEnabled(True)
+        self.btn_perfil_nav = QPushButton("Elegir…")
+        self.btn_perfil_nav.setToolTip(
+            "Usa una carpeta de perfil de Chrome que tu controlas.\n"
+            "Sirve cuando una red limita los intentos de acceso desde el\n"
+            "navegador de la app (X lo hace): inicias sesion una vez en un\n"
+            "Chrome normal con esa carpeta, y despues la app la reutiliza.\n"
+            "Ejecuta «abrir_navegador_para_iniciar_sesion.bat» para prepararla."
+        )
+
         self.chk_chrome = QCheckBox("Usar mi Chrome instalado")
         self.chk_chrome.setChecked(True)
         self.chk_chrome.setToolTip(
@@ -352,6 +367,9 @@ class PestanaExtraer(QWidget):
         rejilla.addWidget(self.chk_verificar_fechas, 3, 0, 1, 2)
         rejilla.addWidget(self.chk_exhaustivo, 3, 2, 1, 2)
         rejilla.addWidget(self.chk_chrome, 4, 0, 1, 2)
+        rejilla.addWidget(QLabel("Carpeta de perfil del navegador:"), 5, 0)
+        rejilla.addWidget(self.txt_perfil_nav, 5, 1, 1, 2)
+        rejilla.addWidget(self.btn_perfil_nav, 5, 3)
         rejilla.addWidget(
             etiqueta_ayuda(
                 "Deja marcado «Mostrar el navegador» al principio: asi ves lo que "
@@ -360,7 +378,7 @@ class PestanaExtraer(QWidget):
                 "fechas salen corridas porque el muro muestra la hora del ultimo "
                 "comentario, no la de la publicacion."
             ),
-            5, 0, 1, 4,
+            6, 0, 1, 4,
         )
         rejilla.setColumnStretch(4, 1)
         return grupo
@@ -415,13 +433,23 @@ class PestanaExtraer(QWidget):
         self.grupo_modo.idToggled.connect(self._cambio_modo)
         self.chk_visible.toggled.connect(self._config_navegador)
         self.chk_chrome.toggled.connect(self._config_navegador)
+        self.txt_perfil_nav.textChanged.connect(self._config_navegador)
+        self.btn_perfil_nav.clicked.connect(self._elegir_perfil)
         self._cambio_red()
 
     # ------------------------------------------------------------------ acciones
 
+    def _elegir_perfil(self) -> None:
+        carpeta = QFileDialog.getExistingDirectory(
+            self, "Elige la carpeta de perfil del navegador",
+            self.txt_perfil_nav.text().strip() or str(Path.home()))
+        if carpeta:
+            self.txt_perfil_nav.setText(carpeta)
+
     def _config_navegador(self, *_) -> None:
         self.hilo.configurar_navegador(
-            self.chk_visible.isChecked(), self.chk_chrome.isChecked())
+            self.chk_visible.isChecked(), self.chk_chrome.isChecked(),
+            self.txt_perfil_nav.text().strip())
 
     def _atajo_fecha(self, dias: int) -> None:
         hoy = QDate.currentDate()
@@ -460,7 +488,8 @@ class PestanaExtraer(QWidget):
 
     def _abrir_login(self) -> None:
         self.hilo.configurar_navegador(
-            self.chk_visible.isChecked(), self.chk_chrome.isChecked())
+            self.chk_visible.isChecked(), self.chk_chrome.isChecked(),
+            self.txt_perfil_nav.text().strip())
         self.hilo.encolar(Tarea(tipo="iniciar_sesion", red=self.red_actual))
 
     def _verificar_sesion(self) -> None:
@@ -472,7 +501,8 @@ class PestanaExtraer(QWidget):
             self.escribir("⚠ Escribe primero la URL del perfil (Paso 2).")
             return
         self.hilo.configurar_navegador(
-            self.chk_visible.isChecked(), self.chk_chrome.isChecked())
+            self.chk_visible.isChecked(), self.chk_chrome.isChecked(),
+            self.txt_perfil_nav.text().strip())
         self.hilo.encolar(
             Tarea(tipo="abrir_url", red=self.red_actual, extra={"url": url}))
 
@@ -487,7 +517,8 @@ class PestanaExtraer(QWidget):
 
     def _iniciar(self) -> None:
         self.hilo.configurar_navegador(
-            self.chk_visible.isChecked(), self.chk_chrome.isChecked())
+            self.chk_visible.isChecked(), self.chk_chrome.isChecked(),
+            self.txt_perfil_nav.text().strip())
         opciones = self.opciones_actuales()
 
         if self.rb_manual.isChecked():

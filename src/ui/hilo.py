@@ -55,6 +55,7 @@ class HiloNavegador(QThread):
         self._cancelar = False
         self._navegador_visible = True
         self._usar_chrome = True
+        self._carpeta_perfil = ""
         self._pausa_entre_publicaciones = (3, 7)  # segundos, para no saturar
         self._ocupado = False
 
@@ -78,9 +79,11 @@ class HiloNavegador(QThread):
         self._cancelar = True
         self._cola.put(None)
 
-    def configurar_navegador(self, visible: bool, usar_chrome: bool = True) -> None:
+    def configurar_navegador(self, visible: bool, usar_chrome: bool = True,
+                             carpeta_perfil: str = "") -> None:
         self._navegador_visible = visible
         self._usar_chrome = usar_chrome
+        self._carpeta_perfil = carpeta_perfil or ""
 
     # ------------------------------------------------------------ bucle del hilo
 
@@ -155,7 +158,9 @@ class HiloNavegador(QThread):
         # reabrirlo: cambiar la casilla no afecta a una ventana ya abierta, y
         # sin esto el usuario marcaba la opcion y no pasaba nada.
         if sesion is not None and sesion.abierta and (
-            sesion.visible != visible or sesion.usar_chrome != self._usar_chrome
+            sesion.visible != visible
+            or sesion.usar_chrome != self._usar_chrome
+            or sesion.carpeta_perfil != self._carpeta_perfil
         ):
             self.log.emit("   Cambiaron los ajustes del navegador: lo reabro.")
             sesion.cerrar()
@@ -167,11 +172,15 @@ class HiloNavegador(QThread):
                 red,
                 visible=visible,
                 usar_chrome=self._usar_chrome,
+                carpeta_perfil=self._carpeta_perfil,
             )
             self._sesiones[red] = sesion
             self.log.emit("🌐 Abriendo el navegador…")
             sesion.abrir()
             self.log.emit(f"   Usando {sesion.navegador_usado}.")
+            if sesion.carpeta_perfil:
+                self.log.emit(
+                    f"   Con la carpeta de perfil elegida: {sesion.carpeta_perfil}")
             if "Chromium incluido" in sesion.navegador_usado:
                 self.log.emit(
                     "   Aviso: el Chromium incluido no trae los codecs de video "

@@ -3,6 +3,10 @@
 __pycache__/
 *.py[cod]
 
+# Perfil de navegador para iniciar sesion (contiene TUS cookies:
+# nunca debe subirse a ningun sitio)
+perfil_navegador/
+
 # Datos generados por la aplicacion
 *.sqlite3
 diagnostico/
