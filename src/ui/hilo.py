@@ -121,6 +121,8 @@ class HiloNavegador(QThread):
             self._tarea_descubrir(tarea)
         elif tarea.tipo == "extraer":
             self._tarea_extraer(tarea)
+        elif tarea.tipo == "abrir_url":
+            self._tarea_abrir_url(tarea)
         elif tarea.tipo == "recargar":
             self._tarea_recargar(tarea)
         elif tarea.tipo == "diagnostico":
@@ -289,6 +291,29 @@ class HiloNavegador(QThread):
             resumen += f" ({omitidas} omitidas por quedar fuera del rango de fechas.)"
         self.log.emit(resumen)
 
+    def _tarea_abrir_url(self, tarea: Tarea) -> None:
+        """Abre una direccion y deja el mando al usuario.
+
+        Es la base del modo asistido: la persona prepara la pagina (entra,
+        resuelve una verificacion, baja un poco) y despues la aplicacion lee
+        lo que haya, sin volver a navegar.
+        """
+        extractor = registro.obtener(tarea.red)
+        url = extractor.normalizar_url_perfil(tarea.extra.get("url", ""))
+        if not url:
+            self.log.emit("⚠ No hay ninguna direccion que abrir.")
+            return
+        sesion = self._sesion(tarea.red)
+        sesion.pagina.goto(url, wait_until="domcontentloaded", timeout=60_000)
+        sesion.pagina.wait_for_timeout(2500)
+        self.log.emit(
+            f"🌐 Abierto en el navegador: {sesion.pagina.url[:80]}\n"
+            "   Preparalo ahi si hace falta (iniciar sesion, resolver una "
+            "verificacion, bajar un poco para que carguen las publicaciones).\n"
+            "   Cuando este listo: marca «La pagina ya esta abierta en el "
+            "navegador» y pulsa «Buscar publicaciones»."
+        )
+
     def _tarea_recargar(self, tarea: Tarea) -> None:
         sesion = self._sesion(tarea.red)
         url = sesion.recargar()
@@ -316,6 +341,7 @@ class HiloNavegador(QThread):
             "verificar_sesion": "Comprobar sesion",
             "descubrir": "Buscar publicaciones",
             "extraer": "Extraer comentarios",
+            "abrir_url": "Abrir perfil en el navegador",
             "recargar": "Recargar pagina",
             "diagnostico": "Diagnostico",
             "cerrar_navegador": "Cerrar navegador",

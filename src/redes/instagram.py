@@ -275,11 +275,17 @@ class ExtractorInstagram(ExtractorRed):
         progreso: Progreso,
         desde: datetime,
     ) -> None:
-        pagina.goto(url_perfil, wait_until="domcontentloaded", timeout=60_000)
+        if opciones.usar_pagina_actual:
+            progreso.log(
+                "   Modo asistido: leo la pagina que ya tienes abierta, "
+                f"sin navegar. ({pagina.url[:70]})"
+            )
+        else:
+            pagina.goto(url_perfil, wait_until="domcontentloaded", timeout=60_000)
         pagina.wait_for_timeout(3000)
         self._cerrar_estorbos(pagina)
 
-        if "/accounts/login" in pagina.url:
+        if not opciones.usar_pagina_actual and "/accounts/login" in pagina.url:
             raise RuntimeError(
                 "Instagram pidio iniciar sesion. Usa el boton "
                 "'Abrir navegador e iniciar sesion' y vuelve a intentarlo."

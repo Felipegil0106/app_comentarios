@@ -177,20 +177,19 @@ class ExtractorTikTok(ExtractorRed):
             "La fecha de cada video sale de su identificador, asi que no hace "
             "falta abrirlos uno a uno para saber cuando se publicaron."
         )
-        # Visita previa a la portada. Un visitante normal llega al perfil ya
-        # con las cookies que TikTok reparte en la primera visita; entrando
-        # directo al perfil nos faltan y la pagina llega descafeinada.
-        try:
-            if "tiktok.com" not in pagina.url:
-                progreso.log("   Paso primero por la portada para recoger cookies…")
-                pagina.goto("https://www.tiktok.com/",
-                            wait_until="domcontentloaded", timeout=45_000)
-                pagina.wait_for_timeout(3000)
-                self._cerrar_estorbos(pagina)
-        except Exception:
-            pass
-
-        pagina.goto(url_perfil, wait_until="domcontentloaded", timeout=60_000)
+        if opciones.usar_pagina_actual:
+            # Modo asistido: no tocamos la navegacion. El usuario ya ha dejado
+            # el perfil abierto (resolviendo el acceso o la verificacion si
+            # hacia falta) y aqui solo leemos lo que hay.
+            progreso.log(
+                "   Modo asistido: leo la pagina que ya tienes abierta, "
+                f"sin navegar. ({pagina.url[:70]})"
+            )
+        else:
+            # Nota: aqui habia una visita previa a la portada para recoger
+            # cookies. Se quito porque TikTok respondia redirigiendo al acceso,
+            # que era peor que el problema que intentaba resolver.
+            pagina.goto(url_perfil, wait_until="domcontentloaded", timeout=60_000)
         self._cerrar_estorbos(pagina)
 
         # TikTok es una aplicacion pesada: cuando «domcontentloaded» se cumple
@@ -203,10 +202,25 @@ class ExtractorTikTok(ExtractorRed):
         # hay forma de distinguirlos.
         self._informar_estado(pagina, progreso, "al abrir el perfil")
 
-        if "/login" in pagina.url:
+        # El titulo delata la redireccion aunque la direccion no cambie: TikTok
+        # pinta la pantalla de acceso dejando la URL del perfil.
+        try:
+            titulo = (pagina.title() or "").lower()
+        except Exception:
+            titulo = ""
+        # «iniciar sesi» cubre «sesión» y «sesion»: no vale depender de la tilde.
+        if ("/login" in pagina.url
+                or "iniciar sesi" in titulo
+                or "log in" in titulo
+                or "logga in" in titulo):
             raise RuntimeError(
-                "TikTok pidio iniciar sesion. Usa el boton "
-                "'Abrir navegador e iniciar sesion' y vuelve a intentarlo."
+                "TikTok redirigio a su pantalla de acceso en vez de mostrar el "
+                "perfil.\n\n"
+                "Lo que mejor funciona: marca «La pagina ya esta abierta en el "
+                "navegador» en el Paso 2, abre tu el perfil en la ventana del "
+                "navegador (resolviendo lo que TikTok pida) y vuelve a pulsar "
+                "«Buscar publicaciones».\n\n"
+                "La otra opcion es el Paso 4 → «Pegar URLs de publicaciones»."
             )
 
         try:

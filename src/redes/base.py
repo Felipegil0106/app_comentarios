@@ -60,6 +60,11 @@ class OpcionesExtraccion:
     # velocidad. Quita el tope de tiempo, sube todos los umbrales de parada y
     # comprueba la fecha de todos los candidatos. Es mucho mas lento.
     exhaustivo: bool = False
+    # Modo asistido: la aplicacion NO navega. Lee la pagina que el usuario ya
+    # tiene abierta en el navegador. Sirve cuando la red redirige al acceso,
+    # pide una verificacion o sirve una version reducida al navegador
+    # automatizado: navega la persona, y la maquina se encarga de lo tedioso.
+    usar_pagina_actual: bool = False
     # Al abrir cada publicacion se lee su fecha EXACTA. Si esta activo y la
     # fecha real cae fuera del rango, se omite. Solo se usa en modo automatico:
     # cuando el usuario elige las publicaciones a mano, manda su eleccion.

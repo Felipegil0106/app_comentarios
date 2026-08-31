@@ -143,10 +143,33 @@ class PestanaExtraer(QWidget):
         )
         self.txt_perfil.setClearButtonEnabled(True)
         caja.addWidget(self.txt_perfil)
+
+        fila = QHBoxLayout()
+        self.chk_pagina_actual = QCheckBox(
+            "La pagina ya esta abierta en el navegador (no navegar)")
+        self.chk_pagina_actual.setToolTip(
+            "Modo asistido: la aplicacion NO navega, lee lo que tengas abierto.\n"
+            "Util cuando la red te manda al acceso, pide una verificacion o\n"
+            "muestra menos de lo normal: abres tu el perfil y la app lo lee."
+        )
+        self.btn_abrir_perfil = QPushButton("🌐 Abrir este perfil en el navegador")
+        self.btn_abrir_perfil.setToolTip(
+            "Abre el perfil en la ventana del navegador para que puedas\n"
+            "prepararlo a mano (iniciar sesion, resolver una verificacion,\n"
+            "bajar un poco) antes de pulsar «Buscar publicaciones»."
+        )
+        fila.addWidget(self.chk_pagina_actual)
+        fila.addStretch(1)
+        fila.addWidget(self.btn_abrir_perfil)
+        caja.addLayout(fila)
+
         caja.addWidget(
             etiqueta_ayuda(
                 "Pega aqui la direccion del perfil o pagina. Sirve tambien "
-                "https://www.facebook.com/profile.php?id=100001234567890"
+                "https://www.facebook.com/profile.php?id=100001234567890\n"
+                "Si una red no te deja (te manda al acceso o pide verificacion): "
+                "pulsa «Abrir este perfil», preparalo tu en esa ventana, marca "
+                "«La pagina ya esta abierta» y dale a Buscar publicaciones."
             )
         )
         return grupo
@@ -373,6 +396,7 @@ class PestanaExtraer(QWidget):
         self.cmb_red.currentIndexChanged.connect(self._cambio_red)
         self.btn_login.clicked.connect(self._abrir_login)
         self.btn_verificar.clicked.connect(self._verificar_sesion)
+        self.btn_abrir_perfil.clicked.connect(self._abrir_perfil)
         self.btn_recargar.clicked.connect(self._recargar_pagina)
         self.btn_cerrar_navegador.clicked.connect(self._cerrar_navegador)
         self.btn_iniciar.clicked.connect(self._iniciar)
@@ -425,6 +449,15 @@ class PestanaExtraer(QWidget):
 
     def _verificar_sesion(self) -> None:
         self.hilo.encolar(Tarea(tipo="verificar_sesion", red=self.red_actual))
+
+    def _abrir_perfil(self) -> None:
+        url = self.txt_perfil.text().strip()
+        if not url:
+            self.escribir("⚠ Escribe primero la URL del perfil (Paso 2).")
+            return
+        self.hilo.configurar_navegador(self.chk_visible.isChecked())
+        self.hilo.encolar(
+            Tarea(tipo="abrir_url", red=self.red_actual, extra={"url": url}))
 
     def _recargar_pagina(self) -> None:
         self.hilo.encolar(Tarea(tipo="recargar", red=self.red_actual))
@@ -493,6 +526,7 @@ class PestanaExtraer(QWidget):
             buscar_en_pestanas=self.chk_pestanas.isChecked(),
             minutos_por_seccion=self.spin_minutos.value(),
             exhaustivo=self.chk_exhaustivo.isChecked(),
+            usar_pagina_actual=self.chk_pagina_actual.isChecked(),
         )
 
     # -------------------------------------------------------- ranuras (señales)

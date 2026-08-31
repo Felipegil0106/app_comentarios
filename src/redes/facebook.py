@@ -134,8 +134,15 @@ class ExtractorFacebook(ExtractorRed):
         # Motivo: Facebook agrupa los reels, videos y fotos en pestañas propias
         # y la linea de tiempo NO los lista todos. Si el perfil publica sobre
         # todo reels, mirando solo el muro siempre faltarian publicaciones.
-        secciones = self._secciones_del_perfil(url_perfil, opciones)
-        progreso.log(f"Voy a recorrer {len(secciones)} secciones del perfil.")
+        if opciones.usar_pagina_actual:
+            # En modo asistido no navegamos, asi que solo tiene sentido leer
+            # la pagina que hay: recorrer «cuatro secciones» de la misma
+            # pantalla seria leer cuatro veces lo mismo.
+            secciones = [("Pagina abierta", pagina.url)]
+            progreso.log("Modo asistido: leo solo la pagina que tienes abierta.")
+        else:
+            secciones = self._secciones_del_perfil(url_perfil, opciones)
+            progreso.log(f"Voy a recorrer {len(secciones)} secciones del perfil.")
 
         for indice, (nombre, url_seccion) in enumerate(secciones, start=1):
             if progreso.cancelado():
@@ -377,7 +384,13 @@ class ExtractorFacebook(ExtractorRed):
         hasta: datetime,
     ) -> None:
         """Abre una seccion del perfil y baja recogiendo enlaces."""
-        pagina.goto(url_seccion, wait_until="domcontentloaded", timeout=60_000)
+        if opciones.usar_pagina_actual:
+            progreso.log(
+                "   Modo asistido: leo la pagina que ya tienes abierta, "
+                f"sin navegar. ({pagina.url[:70]})"
+            )
+        else:
+            pagina.goto(url_seccion, wait_until="domcontentloaded", timeout=60_000)
         pagina.wait_for_timeout(2500)
         self._cerrar_estorbos(pagina)
 
