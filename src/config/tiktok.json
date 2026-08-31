@@ -1,0 +1,30 @@
+{
+  "_ayuda": [
+    "Igual que facebook.json e instagram.json: editable con el Bloc de notas.",
+    "TikTok marca sus elementos con atributos data-e2e, que son bastante",
+    "estables. Si algun dia dejan de funcionar, aqui se corrigen."
+  ],
+
+  "_nota_comentarios": "Cada comentario es un bloque data-e2e=comment-level-N. Dentro, el autor va en comment-username-N y el texto en comment-level-N o comment-text.",
+  "selectores_bloque_comentario": [
+    "[data-e2e^=\"comment-level\"]",
+    "[data-e2e=\"comment-item\"]",
+    "[class*=\"CommentItemContainer\"]"
+  ],
+  "selectores_autor": [
+    "[data-e2e^=\"comment-username\"]",
+    "a[href^=\"/@\"]"
+  ],
+  "selectores_texto": [
+    "[data-e2e=\"comment-text\"]",
+    "span[data-e2e^=\"comment-level\"]",
+    "p[data-e2e^=\"comment-level\"]"
+  ],
+
+  "boton_mas_comentarios": "(ver m[aá]s comentarios|view more comments|cargar m[aá]s|load more)",
+  "boton_ver_respuestas": "(ver \\d[\\d.,]*\\s*respuestas?|view \\d[\\d.,]*\\s*repl(y|ies)|ver m[aá]s respuestas|mostrar respuestas)",
+  "boton_cerrar_dialogo": "(cerrar|close|ahora no|not now|omitir|skip|continuar como invitado)",
+
+  "_nota_urls": "Las publicaciones de TikTok son /@usuario/video/ID y /@usuario/photo/ID. El ID es un numero de 19 cifras cuyos 32 bits altos son la fecha.",
+  "patrones_url_publicacion": ["/video/", "/photo/"]
+}

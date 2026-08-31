@@ -28,17 +28,6 @@ from __future__ import annotations
 from .base import ExtractorNoImplementado
 
 
-class ExtractorTikTok(ExtractorNoImplementado):
-    nombre = "tiktok"
-    etiqueta = "TikTok"
-    url_inicio = "https://www.tiktok.com/"
-    ayuda = (
-        "TikTok todavia no esta implementado.\n"
-        "Cuando lo este, pegaras la URL del perfil:\n"
-        "  https://www.tiktok.com/@nombredeusuario"
-    )
-
-
 class ExtractorX(ExtractorNoImplementado):
     nombre = "x"
     etiqueta = "X (Twitter)"
