@@ -109,6 +109,24 @@ perfil de redes sociales, dentro del rango de fechas que tu elijas.</p>
 </ul>
 </div>
 <div class="aviso">
+<b>«Es posible que el navegador o la aplicación no sean seguros» al iniciar sesión</b><br>
+Ese mensaje es de <b>Google</b>, no de la red social: Google no permite entrar
+con «Continuar con Google» desde un navegador automatizado. Es una protección de
+tu cuenta y no se debe rodear.
+<ul>
+  <li>Entra con el <b>correo y la contraseña</b> de la propia red social
+      (TikTok, Facebook o Instagram), no con el botón de Google.</li>
+  <li>Si tu cuenta solo está ligada a Google, ponle una contraseña desde el móvil
+      o tu navegador normal, en los ajustes de la cuenta, y luego usa esa.</li>
+</ul>
+</div>
+<div class="aviso">
+<b>TikTok no me muestra ninguna publicación</b><br>
+TikTok solo enseña la cuadrícula de vídeos a quien ha iniciado sesión. Si no
+tienes cuenta, usa <b>Paso 4 → «Pegar URLs de publicaciones»</b>: en TikTok no
+pierdes nada, porque la fecha se saca del identificador del vídeo.
+</div>
+<div class="aviso">
 <b>Facebook me pide un captcha o me avisa de «actividad inusual»</b><br>
 Baja el ritmo: reduce el maximo de publicaciones, deja el navegador visible y
 resuelve el captcha a mano en la ventana del navegador. Despues continua.

@@ -90,9 +90,17 @@ class ExtractorTikTok(ExtractorRed):
     ayuda = (
         "Pega la URL del perfil, por ejemplo:\n"
         "  https://www.tiktok.com/@nombredeusuario\n\n"
-        "Necesitas haber iniciado sesion (boton 'Abrir navegador e iniciar sesion').\n"
-        "TikTok es la red mas estricta con la automatizacion: deja el navegador\n"
-        "visible para resolver a mano cualquier captcha que aparezca."
+        "TikTok solo enseña los videos de un perfil a quien ha iniciado sesion.\n"
+        "Sin cuenta veras el nombre del canal pero ninguna publicacion; en ese\n"
+        "caso usa el Paso 4 → «Pegar URLs de publicaciones», que funciona igual\n"
+        "de bien porque la fecha sale del identificador del video.\n\n"
+        "AL INICIAR SESION: entra con tu CORREO Y CONTRASEÑA de TikTok, no con\n"
+        "«Continuar con Google». Google bloquea el acceso desde navegadores\n"
+        "automatizados y devuelve «Es posible que el navegador no sea seguro».\n"
+        "Si tu cuenta solo esta ligada a Google, ponle una contraseña desde el\n"
+        "movil o tu navegador normal: Perfil → Ajustes → Administrar cuenta →\n"
+        "Contraseña. Despues entra aqui con correo y contraseña.\n\n"
+        "Deja el navegador visible para resolver a mano cualquier verificacion."
     )
 
     def __init__(self) -> None:
