@@ -178,6 +178,16 @@ JS_LEER_COMENTARIOS = r"""
     return !/^\/(p|reel|reels|tv|explore|accounts|direct|stories)\/?$/i.test(h);
   };
 
+  // Trozos que NO son el comentario: marcas de tiempo («1 d», «hace 2 h»),
+  // botones y contadores. Sin esto se guardaba la hora como si fuera el texto.
+  const esRuido = (t) => {
+    if (!t) return true;
+    if (/^(hace\s+)?\d+\s*(s|seg|segundos?|min|mins?|minutos?|m|h|hr|horas?|d|d[ií]as?|sem|semanas?|w|mes|meses|a|años?|anos?|y)\.?$/i.test(t)) return true;
+    if (/^(me gusta|responder|reply|like|likes?|compartir|share|editado|edited|verificado|verified|autor|traducci[oó]n|ver traducci[oó]n|see translation|original|mostrar m[aá]s|ver m[aá]s|more)$/i.test(t)) return true;
+    if (/^\d[\d.,]*\s*(me gusta|likes?|respuestas?|replies|comentarios?|comments?)$/i.test(t)) return true;
+    return false;
+  };
+
   const salida = [];
   const vistos = new Set();
 
@@ -186,18 +196,42 @@ JS_LEER_COMENTARIOS = r"""
     const autor = limpio(a.innerText).split(' ')[0];
     if (!autor || autor.length > 40) return;
 
-    // Subimos hasta el bloque que ademas del nombre tiene el comentario
+    // Subimos hasta el bloque del comentario y, DENTRO de el, buscamos el
+    // trozo de texto de verdad.
+    //
+    // No vale quedarse con el primer ancestro que tenga algo mas que el
+    // nombre: ese suele ser <a>ana</a><span>1 d</span>, y acabariamos
+    // guardando «1 d» como si fuera el comentario. Hay que descartar horas,
+    // botones y contadores, y quedarse con el trozo mas largo que quede.
+    // Buscamos, dentro del bloque del comentario, el trozo que es el texto.
+    //
+    // Hay que descartar tres cosas distintas:
+    //   - lo que va dentro de un enlace (el nombre, los hashtags del perfil)
+    //   - los envoltorios, que empiezan por el nombre de quien comenta
+    //     («ana1 d…»); ojo, innerText NO separa elementos inline, asi que
+    //     nombre y hora salen pegados
+    //   - las filas de botones («12 me gustaResponder»), que se reconocen
+    //     porque TODOS sus hijos son ruido
+    const soloRuidoDentro = (e) => {
+      const hijos = Array.from(e.children);
+      if (!hijos.length) return false;
+      const textos = hijos.map(h => limpio(h.innerText)).filter(Boolean);
+      return textos.length > 0 && textos.every(esRuido);
+    };
+
     let cont = a.parentElement, texto = '', saltos = 0;
     while (cont && cont !== raiz && saltos < 6) {
-      const t = limpio(cont.innerText);
-      if (t && t.length > autor.length + 2) {
-        let cand = t.startsWith(autor) ? t.slice(autor.length) : t;
-        cand = cand.replace(/^\s*(verificado|verified)\s*/i, '').trim();
-        if (cand && cand.length < 3000) { texto = cand; break; }
+      const trozos = Array.from(cont.querySelectorAll('span, div, p'))
+        .filter(e => !e.closest('a') && !soloRuidoDentro(e))
+        .map(e => limpio(e.innerText))
+        .filter(t => t && t !== autor && !esRuido(t) && !t.startsWith(autor));
+      if (trozos.length) {
+        texto = trozos.reduce((x, y) => (y.length > x.length ? y : x), '');
+        if (texto) break;
       }
       cont = cont.parentElement; saltos++;
     }
-    if (!texto) return;
+    if (!texto || esRuido(texto)) return;
 
     // El pie de foto NO es un comentario
     if (pie && (texto === pie || texto.startsWith(pie.slice(0, 40)))) return;

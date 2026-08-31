@@ -71,6 +71,28 @@ def _fecha_iso(valor: str) -> datetime | None:
         return None
 
 
+# Segunda barrera: aunque el JavaScript se despiste, esto impide que una marca
+# de tiempo («1 d», «hace 2 h») acabe guardada como si fuera un comentario.
+_SOLO_TIEMPO = re.compile(
+    r"^(hace\s+)?\d+\s*"
+    r"(s|seg|segundos?|min|mins?|minutos?|m|h|hr|horas?|d|d[ií]as?|"
+    r"sem|semanas?|w|mes|meses|a|años?|anos?|y)\.?$",
+    re.IGNORECASE,
+)
+
+
+def _es_texto_de_comentario(texto: str) -> bool:
+    """False si lo leido es en realidad una hora o un boton, no un comentario."""
+    t = (texto or "").strip()
+    if not t:
+        return False
+    if _SOLO_TIEMPO.match(t):
+        return False
+    if re.match(r"^\d[\d.,]*\s*(me gusta|likes?|respuestas?|replies)$", t, re.I):
+        return False
+    return True
+
+
 def _fecha_de_datos(datos: dict) -> tuple[datetime | None, str]:
     """Decide la fecha de una publicacion a partir de lo leido en su pagina.
 
@@ -623,10 +645,14 @@ class ExtractorInstagram(ExtractorRed):
 
         comentarios: list[Comentario] = []
         descartados = 0
+        horas_descartadas = 0
         for c in acumulados.values():
             texto = limpiar_texto(c.get("texto", ""))
             if not texto:
                 descartados += 1
+                continue
+            if not _es_texto_de_comentario(texto):
+                horas_descartadas += 1
                 continue
             if c.get("es_respuesta") and not opciones.incluir_respuestas:
                 continue
@@ -647,6 +673,11 @@ class ExtractorInstagram(ExtractorRed):
             progreso.log(
                 f"Se ignoraron {descartados} comentarios sin texto "
                 "(eran GIF, sticker o imagen)."
+            )
+        if horas_descartadas:
+            progreso.log(
+                f"Se ignoraron {horas_descartadas} bloques que solo eran una "
+                "hora o un boton, no comentarios."
             )
         if not comentarios and not acumulados:
             ruta = self.guardar_diagnostico(pagina, "instagram_sin_comentarios")
