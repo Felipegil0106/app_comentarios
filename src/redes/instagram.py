@@ -117,10 +117,19 @@ class ExtractorInstagram(ExtractorRed):
 
     @classmethod
     def _normalizar_url_publicacion(cls, href: str) -> str:
+        """Deja la URL de la publicacion siempre en la misma forma.
+
+        OJO con el nombre de usuario: dentro de un perfil, Instagram escribe
+        los enlaces como /usuario/p/CODIGO/, no como /p/CODIGO/. Por eso hay
+        que BUSCAR el tramo en la ruta, no exigir que empiece por el.
+        Exigirlo hacia que se descartaran en silencio todas las publicaciones.
+        """
         if not href or "instagram.com" not in href:
             return ""
         ruta = urlsplit(href).path
-        m = re.match(r"^/(p|reel|tv)/([A-Za-z0-9_-]+)", ruta)
+        # El codigo corto tiene al menos 5 caracteres; asi no confundimos
+        # rutas como /reels/audio/ con una publicacion.
+        m = re.search(r"/(p|reel|tv)/([A-Za-z0-9_-]{5,})", ruta)
         if not m:
             return ""
         return f"https://www.instagram.com/{m.group(1)}/{m.group(2)}/"
@@ -234,10 +243,17 @@ class ExtractorInstagram(ExtractorRed):
                 progreso.log(f"   Aviso al leer la pagina: {str(e)[:90]}")
                 crudos = []
 
+            # Contamos cuantos enlaces vemos y cuantos reconocemos. Si la app
+            # ve enlaces pero no reconoce ninguno, el problema esta en la
+            # normalizacion, no en el recorrido: sin esto no se distingue.
+            rechazados = 0
             antes = len(encontradas)
             for item in crudos:
                 url = self._normalizar_url_publicacion(item.get("href", ""))
-                if not url or url in encontradas:
+                if not url:
+                    rechazados += 1
+                    continue
+                if url in encontradas:
                     continue
                 encontradas[url] = Publicacion(
                     url=url,
@@ -250,6 +266,19 @@ class ExtractorInstagram(ExtractorRed):
                 )
             nuevas = len(encontradas) - antes
             sin_nuevas = 0 if nuevas else sin_nuevas + 1
+
+            if ronda == 1 or (ronda == 5 and not encontradas):
+                progreso.log(
+                    f"   Vuelta {ronda}: {len(crudos)} enlaces con pinta de "
+                    f"publicacion, {rechazados} descartados, "
+                    f"{len(encontradas)} reconocidos."
+                )
+                if crudos and not encontradas:
+                    ejemplos = [c.get("href", "")[:80] for c in crudos[:3]]
+                    progreso.log(
+                        "   ⚠ Veo enlaces pero no reconozco ninguno. Ejemplos:\n"
+                        + "\n".join(f"      {e}" for e in ejemplos)
+                    )
 
             progreso.paso(
                 min(len(encontradas), opciones.max_publicaciones),
@@ -314,6 +343,12 @@ class ExtractorInstagram(ExtractorRed):
                 pagina.wait_for_timeout(1500)
             if sin_nuevas >= (45 if opciones.exhaustivo else 25):
                 progreso.log("   No aparecen publicaciones nuevas.")
+                if not encontradas:
+                    ruta = self.guardar_diagnostico(pagina, "instagram_perfil_vacio")
+                    progreso.log(
+                        "   ⚠ No se reconocio NINGUNA publicacion. Guarde la "
+                        f"pagina para revisarla en:\n      {ruta}"
+                    )
                 return
 
     # ------------------------------------------------------------- fechas
