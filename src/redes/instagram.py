@@ -602,14 +602,27 @@ class ExtractorInstagram(ExtractorRed):
             # Re-anclamos cada vuelta: al principio no hay panel que anclar y
             # despues Instagram reemplaza nodos al cargar mas comentarios.
             try:
-                ancla = pagina.evaluate(JS_ANCLAR_PANEL) or {}
+                ancla = pagina.evaluate(JS_ANCLAR_PANEL, codigo) or {}
             except Exception:
                 ancla = {}
             if ancla.get("ok") and not anclado_avisado:
                 anclado_avisado = True
                 progreso.log("   Panel de comentarios anclado a esta publicacion.")
 
-            crudos, _ = self._leer_comentarios_crudos(pagina, codigo, pie_de_foto)
+            # ¿Nos movio Instagram a otra publicacion? Entonces lo que venga ya
+            # no es de esta URL: paramos con lo que llevamos.
+            codigo_actual = self._codigo_publicacion(pagina.url)
+            if codigo and codigo_actual and codigo_actual != codigo:
+                progreso.log(
+                    f"   La pagina salto a otra publicacion ({codigo_actual}); "
+                    "corto aqui para no mezclar comentarios."
+                )
+                break
+
+            crudos, ambito = self._leer_comentarios_crudos(
+                pagina, codigo, pie_de_foto)
+            if vuelta == 1 and ambito:
+                progreso.log(f"   Leyendo comentarios de: {ambito}")
             nuevos = 0
             for c in crudos:
                 clave = f"{(c.get('autor') or '').strip()}|{(c.get('texto') or '').strip()}"
@@ -703,10 +716,13 @@ class ExtractorInstagram(ExtractorRed):
             datos = pagina.evaluate(
                 JS_LEER_COMENTARIOS, [codigo, pie_de_foto])
         except Exception:
-            return [], "error"
+            return [], "error al leer"
         if isinstance(datos, dict):
-            return datos.get("comentarios") or [], datos.get("modo", "")
-        return datos or [], "instagram"
+            ambito = datos.get("ambito", "")
+            if datos.get("articulos", 0) > 1:
+                ambito += f" (la pagina traia {datos['articulos']} publicaciones)"
+            return datos.get("comentarios") or [], ambito
+        return datos or [], ""
 
     def _cerrar_estorbos(self, pagina: Page) -> None:
         """Cierra el aviso de cookies y las ventanas emergentes.

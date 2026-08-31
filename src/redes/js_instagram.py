@@ -166,8 +166,32 @@ JS_LEER_COMENTARIOS = r"""
   // Un comentario se reconoce por: enlace al perfil de quien comenta + texto
   // que no sea solo el nombre. El pie de foto tiene esa misma forma, y se
   // descarta comparandolo con el que anuncia og:description.
+  // De donde leemos. NUNCA de document.body: la pagina de una publicacion
+  // trae debajo «mas publicaciones de este perfil», con sus autores y sus
+  // textos, y acabariamos atribuyendo a esta URL comentarios de otra.
+  // Si no logramos identificar el bloque de la publicacion, no leemos nada:
+  // mejor cero comentarios que comentarios equivocados.
   const anclado = document.querySelector('[data-xc-panel]');
-  const raiz = anclado || document.querySelector('article') || document.body;
+  const articulos = Array.from(document.querySelectorAll('article'));
+  let raiz = anclado, ambito = 'panel anclado';
+  if (!raiz) {
+    if (codigo) {
+      raiz = articulos.find(x => x.querySelector('a[href*="/' + codigo + '"]')) || null;
+      if (raiz) ambito = 'article de esta publicacion';
+    }
+    if (!raiz && articulos.length === 1) {
+      raiz = articulos[0];
+      ambito = 'article unico';
+    }
+    if (!raiz && articulos.length > 1) {
+      raiz = articulos[0];
+      ambito = 'primer article de ' + articulos.length;
+    }
+  }
+  if (!raiz) {
+    return {modo: 'instagram', comentarios: [], anclado: false,
+            ambito: 'ninguno', articulos: articulos.length};
+  }
 
   const limpio = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const pie = limpio(pieDeFoto);
@@ -251,7 +275,8 @@ JS_LEER_COMENTARIOS = r"""
     });
   });
 
-  return {modo: 'instagram', comentarios: salida, anclado: !!anclado};
+  return {modo: 'instagram', comentarios: salida, anclado: !!anclado,
+          ambito: ambito, articulos: articulos.length};
 }
 """
 
@@ -355,9 +380,20 @@ JS_ABRIR_COMENTARIOS = r"""
 
 # Ancla el contenedor con scroll propio donde viven los comentarios
 JS_ANCLAR_PANEL = r"""
-() => {
+(codigo) => {
   document.querySelectorAll('[data-xc-panel]').forEach(
     e => e.removeAttribute('data-xc-panel'));
+
+  // Buscamos SOLO dentro del bloque de esta publicacion. Si buscaramos en
+  // toda la pagina podriamos anclar el carrusel de «mas publicaciones» y
+  // leeriamos comentarios de otra.
+  const articulos = Array.from(document.querySelectorAll('article'));
+  let ambito = null;
+  if (codigo) {
+    ambito = articulos.find(x => x.querySelector('a[href*="/' + codigo + '"]')) || null;
+  }
+  if (!ambito) ambito = articulos[0] || null;
+  if (!ambito) return {ok: false, motivo: 'no se identifico la publicacion'};
 
   // Buscamos el contenedor con scroll propio que MAS comentarios contiene.
   //
@@ -371,7 +407,7 @@ JS_ANCLAR_PANEL = r"""
         && !/^\/(p|reel|reels|tv|explore|accounts|direct|stories)\/?$/i.test(h);
   };
   let mejor = null, mejorN = 0;
-  document.querySelectorAll('div, ul, section').forEach(d => {
+  ambito.querySelectorAll('div, ul, section').forEach(d => {
     const ov = getComputedStyle(d).overflowY;
     if (ov !== 'auto' && ov !== 'scroll') return;
     if (d.clientHeight < 120) return;
