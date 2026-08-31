@@ -54,6 +54,8 @@ JS_ESTADO_PAGINA = r"""
       || hayTexto(['verifica', 'arrastra', 'desliza', 'verify to continue',
                    'drag the slider']),
     parece_vacio: t.trim().length < 80,
+    // TikTok bloquea con dureza los navegadores sin ventana
+    sin_ventana: /Headless/i.test(navigator.userAgent),
     texto: t.slice(0, 300)
   };
 }

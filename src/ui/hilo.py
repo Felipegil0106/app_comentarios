@@ -202,9 +202,12 @@ class HiloNavegador(QThread):
                 f"{extractor.etiqueta} todavia no esta disponible. "
                 "Por ahora usa Facebook."
             )
-        sesion = self._sesion(tarea.red)
         opciones = tarea.opciones or OpcionesExtraccion()
+        aviso = registro.comprobar_url(tarea.red, opciones.url_perfil)
+        if aviso:
+            raise RuntimeError(aviso)
 
+        sesion = self._sesion(tarea.red)
         publicaciones = extractor.descubrir_publicaciones(
             sesion.pagina, opciones, self._progreso()
         )
@@ -219,9 +222,16 @@ class HiloNavegador(QThread):
             raise NotImplementedError(
                 f"{extractor.etiqueta} todavia no esta disponible."
             )
-        sesion = self._sesion(tarea.red)
         opciones = tarea.opciones or OpcionesExtraccion()
         pendientes = tarea.publicaciones
+        # En el modo de pegar URLs a mano tambien hay que comprobar que son de
+        # la red elegida, o se abririan en el sitio equivocado.
+        for pub in pendientes[:5]:
+            aviso = registro.comprobar_url(tarea.red, pub.url)
+            if aviso:
+                raise RuntimeError(aviso)
+
+        sesion = self._sesion(tarea.red)
         total = len(pendientes)
         if not total:
             self.log.emit("No hay publicaciones marcadas para extraer.")

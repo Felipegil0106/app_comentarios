@@ -85,6 +85,7 @@ class ExtractorTikTok(ExtractorRed):
     nombre = "tiktok"
     etiqueta = "TikTok"
     url_inicio = "https://www.tiktok.com/"
+    dominios = ("tiktok.com", "vm.tiktok.com")
     implementado = True
     ayuda = (
         "Pega la URL del perfil, por ejemplo:\n"
@@ -168,12 +169,16 @@ class ExtractorTikTok(ExtractorRed):
             "falta abrirlos uno a uno para saber cuando se publicaron."
         )
         pagina.goto(url_perfil, wait_until="domcontentloaded", timeout=60_000)
-        pagina.wait_for_timeout(3500)
         self._cerrar_estorbos(pagina)
 
-        # Antes de nada, contamos que estamos viendo. Un muro de acceso, un
-        # captcha y una pagina que no cargo dan los tres cero enlaces, asi que
-        # sin esto no hay forma de distinguirlos.
+        # TikTok es una aplicacion pesada: cuando «domcontentloaded» se cumple
+        # todavia no ha pintado nada. Hay que ESPERAR a que aparezca contenido
+        # de verdad, no dar por hecho que ya esta.
+        self._esperar_contenido(pagina, progreso)
+
+        # Contamos que estamos viendo. Un muro de acceso, un captcha y una
+        # pagina que no cargo dan los tres cero enlaces, asi que sin esto no
+        # hay forma de distinguirlos.
         self._informar_estado(pagina, progreso, "al abrir el perfil")
 
         if "/login" in pagina.url:
@@ -490,6 +495,45 @@ class ExtractorTikTok(ExtractorRed):
 
     # -------------------------------------------------------------- auxiliares
 
+    def _esperar_contenido(
+        self, pagina: Page, progreso: Progreso, segundos: int = 30
+    ) -> bool:
+        """Espera a que la pagina pinte algo, y recarga una vez si no lo hace.
+
+        TikTok tarda varios segundos en dibujar el perfil: cuando el navegador
+        dice «domcontentloaded» aun no hay ni titulo. Sin esta espera se leia
+        una pagina vacia y se informaba de cero publicaciones como si el
+        perfil no tuviera ninguna.
+        """
+        for intento in (1, 2):
+            limite = time.monotonic() + segundos
+            while time.monotonic() < limite:
+                if progreso.cancelado():
+                    return False
+                try:
+                    e = pagina.evaluate(JS_ESTADO_PAGINA) or {}
+                except Exception:
+                    e = {}
+                # Cualquiera de estas tres cosas significa que ya hay algo que
+                # mirar: videos, un muro de acceso o una verificacion.
+                if e.get("enlaces_video") or e.get("hay_login") or e.get("hay_captcha"):
+                    return True
+                if e.get("enlaces_total", 0) > 5 and not e.get("parece_vacio"):
+                    return True
+                pagina.wait_for_timeout(1000)
+
+            if intento == 1:
+                progreso.log(
+                    f"   La pagina sigue vacia tras {segundos}s. Recargo y "
+                    "espero otra vez…"
+                )
+                try:
+                    pagina.reload(wait_until="domcontentloaded", timeout=60_000)
+                    self._cerrar_estorbos(pagina)
+                except Exception:
+                    pass
+        return False
+
     def _informar_estado(self, pagina: Page, progreso: Progreso, cuando: str) -> None:
         """Cuenta en el registro que pagina estamos viendo de verdad.
 
@@ -525,9 +569,21 @@ class ExtractorTikTok(ExtractorRed):
             )
         elif e.get("parece_vacio"):
             progreso.log(
-                "   ⚠ La pagina esta practicamente vacia: no llego a cargar. "
-                "Prueba con el boton 🔄 de recargar."
+                "   ⚠ La pagina esta practicamente vacia: TikTok no llego a "
+                "mostrar nada."
             )
+            if e.get("sin_ventana"):
+                progreso.log(
+                    "      La causa mas probable: el navegador va SIN VENTANA. "
+                    "TikTok bloquea eso casi siempre. Marca «Mostrar el "
+                    "navegador mientras trabaja» en Opciones avanzadas, cierra "
+                    "el navegador con ✖ y vuelve a intentarlo."
+                )
+            else:
+                progreso.log(
+                    "      Puede ser un bloqueo de TikTok. Mira la ventana del "
+                    "navegador: si hay una verificacion, resuelvela a mano."
+                )
         elif not e.get("enlaces_video"):
             progreso.log(
                 "   ⚠ La pagina cargo pero no trae enlaces a videos. "

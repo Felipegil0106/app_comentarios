@@ -32,6 +32,7 @@ class ExtractorX(ExtractorNoImplementado):
     nombre = "x"
     etiqueta = "X (Twitter)"
     url_inicio = "https://x.com/"
+    dominios = ("x.com", "twitter.com")
     ayuda = (
         "X todavia no esta implementado.\n"
         "Cuando lo este, pegaras la URL del perfil:\n"

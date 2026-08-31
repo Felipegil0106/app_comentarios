@@ -74,6 +74,10 @@ class ExtractorRed(ABC):
     url_inicio: str = ""          # pagina para iniciar sesion
     implementado: bool = False    # False = todavia es un esqueleto
     ayuda: str = ""               # texto de ayuda que se muestra en la app
+    # Dominios que maneja esta red. Sirven para avisar cuando la URL pegada
+    # no corresponde a la red elegida, en vez de buscar en el sitio
+    # equivocado y devolver cero sin explicar por que.
+    dominios: tuple[str, ...] = ()
 
     # ------------------------------------------------------------------ sesion
 

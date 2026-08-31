@@ -138,6 +138,7 @@ class ExtractorInstagram(ExtractorRed):
     nombre = "instagram"
     etiqueta = "Instagram"
     url_inicio = "https://www.instagram.com/"
+    dominios = ("instagram.com", "instagr.am")
     implementado = True
     ayuda = (
         "Pega la URL del perfil, por ejemplo:\n"

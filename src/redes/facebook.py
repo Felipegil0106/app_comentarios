@@ -62,6 +62,7 @@ class ExtractorFacebook(ExtractorRed):
     nombre = "facebook"
     etiqueta = "Facebook"
     url_inicio = "https://www.facebook.com/"
+    dominios = ("facebook.com", "fb.com", "fb.watch")
     implementado = True
     ayuda = (
         "Pega la URL del perfil o pagina, por ejemplo:\n"
