@@ -161,7 +161,39 @@ class SesionNavegador:
         # Se aplica a TODAS las pestañas del contexto, incluidas las auxiliares
         # que se abren despues, y en cada navegacion.
         self._contexto.add_init_script(_GUION_INICIAL)
+
+        # Cada pestaña nueva se prepara sola (las auxiliares de las sondas
+        # tambien). Y preparamos la que ya existe.
+        self._contexto.on("page", self._preparar_pagina)
+        self._preparar_pagina(self._pagina)
         return self._pagina
+
+    def _preparar_pagina(self, pagina: Page) -> None:
+        """Pide al navegador que no se detenga en las sentencias `debugger`.
+
+        TikTok lleva sentencias `debugger` literales en bucle para congelar la
+        pestaña. El sintoma es el aviso «El depurador se ha pausado en otra
+        pestaña»: con la pagina detenida ni siquiera termina de cargar, se
+        queda en about:blank y no se puede ni iniciar sesion.
+
+        MUY IMPORTANTE no llamar aqui a `Debugger.enable`. Medido:
+
+            sin tocar CDP ............... carga en 1,6 s
+            Debugger.enable ............. se congela
+            enable + setSkipAllPauses ... se congela igual
+            solo setSkipAllPauses ....... carga en 1,6 s
+
+        Es decir: mientras nadie active el depurador, un `debugger` literal no
+        hace absolutamente nada, y activarlo es justo lo que dispara la
+        trampa. Enviamos solo setSkipAllPauses, que es inofensivo y ademas
+        cubre el caso de que el depurador lo haya activado otro (por ejemplo,
+        si quedaron las herramientas de desarrollo abiertas en el perfil).
+        """
+        try:
+            cdp = self._contexto.new_cdp_session(pagina)
+            cdp.send("Debugger.setSkipAllPauses", {"skip": True})
+        except Exception:
+            pass
 
     @property
     def pagina(self) -> Page:

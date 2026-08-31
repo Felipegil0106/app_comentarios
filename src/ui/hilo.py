@@ -151,12 +151,29 @@ class HiloNavegador(QThread):
     def _tarea_iniciar_sesion(self, tarea: Tarea) -> None:
         extractor = registro.obtener(tarea.red)
         sesion = self._sesion(tarea.red)
-        self.log.emit(
-            f"Se abrio {extractor.etiqueta} en el navegador. "
-            "Inicia sesion ahi con tu usuario y contraseña; "
-            "cuando termines vuelve aqui y pulsa «Ya inicie sesion»."
-        )
-        extractor.abrir_login(sesion.pagina)
+        try:
+            extractor.abrir_login(sesion.pagina)
+            sesion.pagina.wait_for_timeout(2000)
+        except Exception as e:
+            self.log.emit(f"⚠ No se pudo abrir la pagina: {str(e)[:120]}")
+
+        # Decimos donde acabamos de verdad: si se queda en about:blank es que
+        # la pagina no cargo, y conviene verlo en el registro.
+        try:
+            destino = sesion.pagina.url
+        except Exception:
+            destino = "?"
+        if destino.startswith("about:") or not destino:
+            self.log.emit(
+                f"⚠ El navegador se quedo en «{destino}»: {extractor.etiqueta} "
+                "no llego a cargar. Prueba a recargar con el boton 🔄."
+            )
+        else:
+            self.log.emit(
+                f"Se abrio {extractor.etiqueta} en el navegador ({destino[:60]}). "
+                "Inicia sesion ahi con tu usuario y contraseña; "
+                "cuando termines vuelve aqui y pulsa «Ya inicie sesion»."
+            )
 
     def _tarea_verificar_sesion(self, tarea: Tarea) -> None:
         extractor = registro.obtener(tarea.red)
