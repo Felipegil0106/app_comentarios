@@ -83,6 +83,9 @@ class ExtractorRed(ABC):
     # no corresponde a la red elegida, en vez de buscar en el sitio
     # equivocado y devolver cero sin explicar por que.
     dominios: tuple[str, ...] = ()
+    # Algunas redes no funcionan con el navegador oculto. Medido en TikTok:
+    # sin ventana devuelve 0 videos, con ventana 16 sobre el mismo perfil.
+    requiere_ventana: bool = False
 
     # ------------------------------------------------------------------ sesion
 

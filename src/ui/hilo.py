@@ -135,11 +135,37 @@ class HiloNavegador(QThread):
             raise ValueError(f"Tarea desconocida: {tarea.tipo}")
 
     def _sesion(self, red: str) -> SesionNavegador:
+        # Hay redes que no funcionan con el navegador oculto. Medido en TikTok:
+        # sin ventana, cero videos; con ventana, dieciseis. Lo forzamos y lo
+        # decimos, en vez de dejar al usuario con una pagina vacia.
+        visible = self._navegador_visible
+        try:
+            if registro.obtener(red).requiere_ventana and not visible:
+                visible = True
+                self.log.emit(
+                    f"   {registro.obtener(red).etiqueta} no funciona con el "
+                    "navegador oculto, asi que lo abro con ventana."
+                )
+        except Exception:
+            pass
+
         sesion = self._sesiones.get(red)
+
+        # Si el navegador ya estaba abierto con otros ajustes, hay que
+        # reabrirlo: cambiar la casilla no afecta a una ventana ya abierta, y
+        # sin esto el usuario marcaba la opcion y no pasaba nada.
+        if sesion is not None and sesion.abierta and (
+            sesion.visible != visible or sesion.usar_chrome != self._usar_chrome
+        ):
+            self.log.emit("   Cambiaron los ajustes del navegador: lo reabro.")
+            sesion.cerrar()
+            sesion = None
+            self._sesiones.pop(red, None)
+
         if sesion is None or not sesion.abierta:
             sesion = SesionNavegador(
                 red,
-                visible=self._navegador_visible,
+                visible=visible,
                 usar_chrome=self._usar_chrome,
             )
             self._sesiones[red] = sesion

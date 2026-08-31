@@ -87,6 +87,7 @@ class ExtractorTikTok(ExtractorRed):
     etiqueta = "TikTok"
     url_inicio = "https://www.tiktok.com/"
     dominios = ("tiktok.com", "vm.tiktok.com")
+    requiere_ventana = True   # sin ventana TikTok no pinta la cuadricula
     implementado = True
     ayuda = (
         "Pega la URL del perfil, por ejemplo:\n"
