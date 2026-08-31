@@ -121,6 +121,18 @@ tu cuenta y no se debe rodear.
 </ul>
 </div>
 <div class="aviso">
+<b>X (Twitter) no me deja entrar</b><br>
+La pantalla de acceso enseña tres botones grandes (teléfono, Google, Apple) y
+es fácil no ver lo importante: <b>debajo, separado por un «o», está el campo
+«Correo electrónico o nombre de usuario»</b>. Ese es el que funciona.
+<ul>
+  <li>Escribe ahí tu <b>correo</b> o tu <b>@usuario</b> y pulsa Continuar; después
+      te pedirá la contraseña. La app te deja el cursor ya puesto en ese campo.</li>
+  <li><b>No</b> uses «Continuar con Google»: rechaza los navegadores automatizados.</li>
+  <li>X necesita el navegador <b>con ventana</b>. La app lo abre así sola.</li>
+</ul>
+</div>
+<div class="aviso">
 <b>TikTok no me muestra ninguna publicación</b><br>
 TikTok solo enseña la cuadrícula de vídeos a quien ha iniciado sesión. Si no
 tienes cuenta, usa <b>Paso 4 → «Pegar URLs de publicaciones»</b>: en TikTok no

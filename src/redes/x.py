@@ -55,6 +55,14 @@ from .js_x import (
 _EPOCA_MS = 1288834974657
 _MINIMO = datetime(2010, 11, 5)
 
+# El campo de acceso de X. Se busca por varias vias porque su atributo
+# autocomplete es «username webauthn», no «username»: buscarlo por igualdad
+# exacta hacia creer que el formulario no estaba.
+SELECTOR_USUARIO = (
+    'input[name="username_or_email"], input[autocomplete*="username"], '
+    'input[name="text"]'
+)
+
 
 def _cargar_config() -> dict:
     with open(CARPETA_CONFIG / "x.json", "r", encoding="utf-8") as f:
@@ -89,15 +97,21 @@ class ExtractorX(ExtractorRed):
     etiqueta = "X (Twitter)"
     url_inicio = "https://x.com/"
     dominios = ("x.com", "twitter.com")
+    # Medido: sin ventana, X ni siquiera carga el perfil.
+    requiere_ventana = True
     implementado = True
     ayuda = (
         "Pega la URL del perfil, por ejemplo:\n"
         "  https://x.com/nombredeusuario\n\n"
         "En X los «comentarios» son las respuestas a cada publicacion.\n\n"
-        "X casi siempre exige iniciar sesion para ver nada. Si no te deja:\n"
-        "usa «Abrir este perfil en el navegador», entra tu en esa ventana,\n"
-        "marca «La pagina ya esta abierta» y pulsa Buscar publicaciones.\n"
-        "Al entrar, usa usuario y contraseña de X, no el boton de Google."
+        "X EXIGE CUENTA: sin iniciar sesion no deja ver casi nada.\n\n"
+        "COMO ENTRAR. X solo enseña tres botones: telefono, Google y Apple.\n"
+        "No hay boton de correo y contraseña, y Google rechaza los navegadores\n"
+        "automatizados. La via buena es «Continuar con el telefono», que pese\n"
+        "al nombre acepta tambien tu correo o tu @usuario. La aplicacion lo\n"
+        "pulsa por ti y te deja en el formulario.\n\n"
+        "Si aun asi no te deja: «Abrir este perfil en el navegador», entra tu\n"
+        "en esa ventana, marca «La pagina ya esta abierta» y busca."
     )
 
     def __init__(self) -> None:
@@ -106,8 +120,32 @@ class ExtractorX(ExtractorRed):
     # ------------------------------------------------------------------ sesion
 
     def abrir_login(self, pagina: Page) -> None:
+        """Deja al usuario directamente en el formulario de acceso.
+
+        X no ofrece un boton de «correo y contraseña»: solo telefono, Google
+        y Apple. Google esta bloqueado en navegadores automatizados, asi que
+        la unica via es «Continuar con el telefono», que pese al nombre acepta
+        tambien correo o @usuario. Aqui se pulsa por el usuario, para que se
+        encuentre el formulario ya abierto en vez de un menu confuso.
+        """
         pagina.goto("https://x.com/i/flow/login",
                     wait_until="domcontentloaded", timeout=45_000)
+        pagina.wait_for_timeout(3500)
+
+        # No hay que pulsar nada: el campo ya esta en esa pantalla, debajo de
+        # los tres botones y separado por un «o». Solo hay que saber buscarlo.
+        #
+        # El campo se llama username_or_email y su autocomplete es
+        # «username webauthn», no «username» a secas: buscarlo por igualdad
+        # exacta no lo encontraba y parecia que el formulario no existiera.
+        # Y pulsar «Continuar con el telefono» ALEJA del formulario bueno:
+        # lleva a la pantalla de numero de telefono.
+        try:
+            campo = pagina.locator(SELECTOR_USUARIO).first
+            campo.wait_for(state="visible", timeout=10_000)
+            campo.click(timeout=5_000)   # lo dejamos enfocado, listo para escribir
+        except Exception:
+            pass
 
     def sesion_iniciada(self, pagina: Page) -> bool:
         try:

@@ -23,5 +23,8 @@
   "boton_mas_respuestas": "(mostrar m[aá]s respuestas|show more replies|mostrar m[aá]s|show more|descubrir m[aá]s)",
   "boton_cerrar_dialogo": "(cerrar|close|ahora no|not now|omitir|skip)",
 
+  "_nota_acceso": "X solo ofrece tres botones: telefono, Google y Apple. No hay boton de correo y contraseña. El de «telefono» es el que lleva al formulario, y acepta tambien correo o @usuario. Google esta bloqueado en navegadores automatizados.",
+  "boton_entrar_con_usuario": "^(continuar con el tel[eé]fono|continuar con el correo|use phone( number)?,? email,? or username|sign in with phone or email)",
+
   "patrones_url_publicacion": ["/status/"]
 }
