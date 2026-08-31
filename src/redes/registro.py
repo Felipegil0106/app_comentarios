@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from .base import ExtractorRed
 from .facebook import ExtractorFacebook
-from .otras_redes import ExtractorInstagram, ExtractorTikTok, ExtractorX
+from .instagram import ExtractorInstagram
+from .otras_redes import ExtractorTikTok, ExtractorX
 
 # Orden en que apareceran en el desplegable de la interfaz
 _CLASES = [ExtractorFacebook, ExtractorInstagram, ExtractorTikTok, ExtractorX]

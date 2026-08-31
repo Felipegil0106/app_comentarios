@@ -1,0 +1,19 @@
+{
+  "_ayuda": [
+    "Igual que facebook.json: se puede editar con el Bloc de notas.",
+    "Si Instagram cambia su diseño y la app deja de encontrar comentarios,",
+    "aqui se corrigen los textos de los botones sin tocar el codigo.",
+    "Los valores son patrones de texto; para añadir uno, ponlo separado por |"
+  ],
+
+  "boton_mas_comentarios": "(cargar m[aá]s comentarios|load more comments|ver m[aá]s comentarios|view more comments|m[aá]s comentarios)",
+
+  "boton_ver_respuestas": "(ver (las )?\\d[\\d.,]*\\s*respuestas?|ver respuestas|view( all)?\\s*\\d*\\s*repl(y|ies)|mostrar respuestas)",
+
+  "boton_ver_mas_texto": "^(m[aá]s|more|ver m[aá]s|see more)$",
+
+  "boton_cerrar_dialogo": "(cerrar|close|ahora no|not now)",
+
+  "_nota_publicaciones": "Rutas que identifican una publicacion de Instagram: /p/ (foto o carrusel), /reel/ (reel) y /tv/ (IGTV, ya en desuso).",
+  "patrones_url_publicacion": ["/p/", "/reel/", "/tv/"]
+}

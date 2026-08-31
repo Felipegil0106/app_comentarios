@@ -28,17 +28,6 @@ from __future__ import annotations
 from .base import ExtractorNoImplementado
 
 
-class ExtractorInstagram(ExtractorNoImplementado):
-    nombre = "instagram"
-    etiqueta = "Instagram"
-    url_inicio = "https://www.instagram.com/"
-    ayuda = (
-        "Instagram todavia no esta implementado.\n"
-        "Cuando lo este, pegaras la URL del perfil:\n"
-        "  https://www.instagram.com/nombredeusuario/"
-    )
-
-
 class ExtractorTikTok(ExtractorNoImplementado):
     nombre = "tiktok"
     etiqueta = "TikTok"
