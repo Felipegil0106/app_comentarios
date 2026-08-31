@@ -296,6 +296,15 @@ class PestanaExtraer(QWidget):
         self.chk_visible = QCheckBox("Mostrar el navegador mientras trabaja")
         self.chk_visible.setChecked(True)
 
+        self.chk_chrome = QCheckBox("Usar mi Chrome instalado")
+        self.chk_chrome.setChecked(True)
+        self.chk_chrome.setToolTip(
+            "Usa el Google Chrome de tu equipo en vez del navegador que trae\n"
+            "la aplicacion. Importa para TikTok: el incluido no lleva los\n"
+            "codecs de video, y sin ellos la cuadricula sale en blanco.\n"
+            "Si no tienes Chrome, prueba Edge y si no el incluido."
+        )
+
         self.spin_minutos = QSpinBox()
         self.spin_minutos.setRange(1, 60)
         self.spin_minutos.setValue(8)
@@ -342,6 +351,7 @@ class PestanaExtraer(QWidget):
         rejilla.addWidget(self.chk_pestanas, 2, 2, 1, 2)
         rejilla.addWidget(self.chk_verificar_fechas, 3, 0, 1, 2)
         rejilla.addWidget(self.chk_exhaustivo, 3, 2, 1, 2)
+        rejilla.addWidget(self.chk_chrome, 4, 0, 1, 2)
         rejilla.addWidget(
             etiqueta_ayuda(
                 "Deja marcado «Mostrar el navegador» al principio: asi ves lo que "
@@ -350,7 +360,7 @@ class PestanaExtraer(QWidget):
                 "fechas salen corridas porque el muro muestra la hora del ultimo "
                 "comentario, no la de la publicacion."
             ),
-            4, 0, 1, 4,
+            5, 0, 1, 4,
         )
         rejilla.setColumnStretch(4, 1)
         return grupo
@@ -403,10 +413,15 @@ class PestanaExtraer(QWidget):
         self.btn_detener.clicked.connect(self.hilo.cancelar)
         self.btn_diagnostico.clicked.connect(self._diagnostico)
         self.grupo_modo.idToggled.connect(self._cambio_modo)
-        self.chk_visible.toggled.connect(self.hilo.configurar_navegador)
+        self.chk_visible.toggled.connect(self._config_navegador)
+        self.chk_chrome.toggled.connect(self._config_navegador)
         self._cambio_red()
 
     # ------------------------------------------------------------------ acciones
+
+    def _config_navegador(self, *_) -> None:
+        self.hilo.configurar_navegador(
+            self.chk_visible.isChecked(), self.chk_chrome.isChecked())
 
     def _atajo_fecha(self, dias: int) -> None:
         hoy = QDate.currentDate()
@@ -444,7 +459,8 @@ class PestanaExtraer(QWidget):
         )
 
     def _abrir_login(self) -> None:
-        self.hilo.configurar_navegador(self.chk_visible.isChecked())
+        self.hilo.configurar_navegador(
+            self.chk_visible.isChecked(), self.chk_chrome.isChecked())
         self.hilo.encolar(Tarea(tipo="iniciar_sesion", red=self.red_actual))
 
     def _verificar_sesion(self) -> None:
@@ -455,7 +471,8 @@ class PestanaExtraer(QWidget):
         if not url:
             self.escribir("⚠ Escribe primero la URL del perfil (Paso 2).")
             return
-        self.hilo.configurar_navegador(self.chk_visible.isChecked())
+        self.hilo.configurar_navegador(
+            self.chk_visible.isChecked(), self.chk_chrome.isChecked())
         self.hilo.encolar(
             Tarea(tipo="abrir_url", red=self.red_actual, extra={"url": url}))
 
@@ -469,7 +486,8 @@ class PestanaExtraer(QWidget):
         self.hilo.encolar(Tarea(tipo="diagnostico", red=self.red_actual))
 
     def _iniciar(self) -> None:
-        self.hilo.configurar_navegador(self.chk_visible.isChecked())
+        self.hilo.configurar_navegador(
+            self.chk_visible.isChecked(), self.chk_chrome.isChecked())
         opciones = self.opciones_actuales()
 
         if self.rb_manual.isChecked():

@@ -54,6 +54,7 @@ class HiloNavegador(QThread):
         self._sesiones: dict[str, SesionNavegador] = {}
         self._cancelar = False
         self._navegador_visible = True
+        self._usar_chrome = True
         self._pausa_entre_publicaciones = (3, 7)  # segundos, para no saturar
         self._ocupado = False
 
@@ -77,8 +78,9 @@ class HiloNavegador(QThread):
         self._cancelar = True
         self._cola.put(None)
 
-    def configurar_navegador(self, visible: bool) -> None:
+    def configurar_navegador(self, visible: bool, usar_chrome: bool = True) -> None:
         self._navegador_visible = visible
+        self._usar_chrome = usar_chrome
 
     # ------------------------------------------------------------ bucle del hilo
 
@@ -135,16 +137,22 @@ class HiloNavegador(QThread):
     def _sesion(self, red: str) -> SesionNavegador:
         sesion = self._sesiones.get(red)
         if sesion is None or not sesion.abierta:
-            sesion = SesionNavegador(red, visible=self._navegador_visible)
+            sesion = SesionNavegador(
+                red,
+                visible=self._navegador_visible,
+                usar_chrome=self._usar_chrome,
+            )
             self._sesiones[red] = sesion
             self.log.emit("🌐 Abriendo el navegador…")
             sesion.abrir()
-            # Marca de version: sirve para saber, mirando el registro, que se
-            # esta ejecutando el codigo actual y no una ventana vieja.
-            self.log.emit(
-                "   Navegador listo (sin depurador activado, sin aviso de "
-                "automatizacion)."
-            )
+            self.log.emit(f"   Usando {sesion.navegador_usado}.")
+            if "Chromium incluido" in sesion.navegador_usado:
+                self.log.emit(
+                    "   Aviso: el Chromium incluido no trae los codecs de video "
+                    "propietarios. TikTok suele dejar la cuadricula de videos en "
+                    "blanco con el. Si tienes Google Chrome instalado, marca "
+                    "«Usar mi Chrome instalado» en Opciones avanzadas."
+                )
         return sesion
 
     def _progreso(self) -> Progreso:

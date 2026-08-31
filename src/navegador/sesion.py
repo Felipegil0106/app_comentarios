@@ -100,10 +100,17 @@ def cerrar_playwright() -> None:
 class SesionNavegador:
     """Abre y mantiene vivo un navegador para una red social."""
 
-    def __init__(self, red: str, visible: bool = True, ralentizar_ms: int = 0):
+    def __init__(self, red: str, visible: bool = True, ralentizar_ms: int = 0,
+                 usar_chrome: bool = True):
         self.red = red
         self.visible = visible
         self.ralentizar_ms = ralentizar_ms
+        # Usar el Chrome instalado en el equipo en vez del Chromium que trae
+        # Playwright. Importa mas de lo que parece: el Chromium incluido NO
+        # lleva los codecs de video propietarios (H.264), y sin ellos TikTok
+        # carga la pagina pero deja la cuadricula de videos en blanco.
+        self.usar_chrome = usar_chrome
+        self.navegador_usado = ""
         self._playwright: Any = None
         self._contexto: BrowserContext | None = None
         self._pagina: Page | None = None
@@ -127,8 +134,8 @@ class SesionNavegador:
             else {"viewport": {"width": 1500, "height": 950}}
         )
 
-        def _lanzar(con_sandbox: bool) -> BrowserContext:
-            return self._playwright.chromium.launch_persistent_context(
+        def _lanzar(con_sandbox: bool, canal: str | None) -> BrowserContext:
+            opciones = dict(
                 user_data_dir=str(perfil),
                 headless=not self.visible,
                 slow_mo=self.ralentizar_ms,
@@ -143,11 +150,36 @@ class SesionNavegador:
                 chromium_sandbox=con_sandbox,
                 **extra,
             )
+            if canal:
+                opciones["channel"] = canal
+            return self._playwright.chromium.launch_persistent_context(**opciones)
 
-        try:
-            self._contexto = _lanzar(True)
-        except Exception:
-            self._contexto = _lanzar(False)
+        # Orden de preferencia. El Chrome del equipo va primero porque lleva
+        # los codecs que el Chromium incluido no trae; si no esta instalado,
+        # se prueba Edge y por ultimo el Chromium de siempre.
+        candidatos = (
+            [("chrome", "tu Google Chrome"), ("msedge", "Microsoft Edge"),
+             (None, "el Chromium incluido")]
+            if self.usar_chrome else [(None, "el Chromium incluido")]
+        )
+
+        ultimo_error: Exception | None = None
+        for canal, nombre in candidatos:
+            for con_sandbox in (True, False):
+                try:
+                    self._contexto = _lanzar(con_sandbox, canal)
+                    self.navegador_usado = nombre
+                    break
+                except Exception as e:
+                    ultimo_error = e
+            if self._contexto is not None:
+                break
+
+        if self._contexto is None:
+            raise RuntimeError(
+                "No se pudo abrir ningun navegador. "
+                f"Ultimo error: {ultimo_error}"
+            )
 
         self._contexto.set_default_timeout(25_000)
 
