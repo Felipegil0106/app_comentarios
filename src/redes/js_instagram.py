@@ -66,16 +66,26 @@ JS_DATOS_PUBLICACION = r"""
   }
 
   // Regla 2 (respaldo): una publicacion es SIEMPRE anterior a sus propios
-  // comentarios, asi que la fecha mas antigua de la pagina es la suya.
-  // Solo miramos dentro del <article> para no confundirnos con las
-  // "publicaciones sugeridas" que Instagram enseña mas abajo.
+  // comentarios, asi que la fecha mas antigua es la suya.
+  // Nos ceñimos al <article> para no confundirnos con las "publicaciones
+  // sugeridas" que Instagram enseña mas abajo.
   if (!fecha) {
-    const art = document.querySelector('article') || document.body;
-    const dentro = Array.from(art.querySelectorAll('time[datetime]'))
-      .map(t => t.getAttribute('datetime'))
-      .filter(Boolean)
-      .sort();
-    if (dentro.length) { fecha = dentro[0]; confianza = 'mas_antigua'; }
+    const art = document.querySelector('article');
+    if (art) {
+      const dentro = Array.from(art.querySelectorAll('time[datetime]'))
+        .map(t => t.getAttribute('datetime'))
+        .filter(Boolean)
+        .sort();
+      if (dentro.length) { fecha = dentro[0]; confianza = 'mas_antigua'; }
+    }
+  }
+
+  // Regla 3 (ultimo recurso): en la pagina de una publicacion, la fecha de la
+  // cabecera va antes que la de cualquier comentario, asi que el primer
+  // <time> del documento suele ser el bueno. Menos fiable, se marca como tal.
+  if (!fecha && tiempos.length) {
+    fecha = tiempos[0].getAttribute('datetime') || '';
+    if (fecha) confianza = 'primera_de_la_pagina';
   }
 
   // Texto del pie de foto (para reconocer la publicacion en la tabla)

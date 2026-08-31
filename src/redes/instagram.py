@@ -226,7 +226,7 @@ class ExtractorInstagram(ExtractorRed):
         paso = max(300, int(alto * 0.60))
 
         patrones = self.cfg["patrones_url_publicacion"]
-        sin_nuevas = rondas_al_final = sondas = 0
+        sin_nuevas = rondas_al_final = sondas = fallos_sonda = 0
         limite = time.monotonic() + max(1, opciones.minutos_por_seccion) * 60
 
         for ronda in range(1, opciones.max_desplazamientos + 1):
@@ -292,17 +292,28 @@ class ExtractorInstagram(ExtractorRed):
             # se sale del rango, todo lo que queda debajo tambien.
             if aux is not None and ronda % 5 == 0 and nuevas:
                 ultima = list(encontradas.values())[-1]
-                fecha = self._sonda_fecha(aux, ultima.url)
+                fecha, motivo = self._sonda_fecha(aux, ultima.url)
                 sondas += 1
                 if fecha:
+                    fallos_sonda = 0
                     ultima.fecha = fecha
                     progreso.log(
                         f"   Sonda {sondas}: por la publicacion del "
-                        f"{fecha:%d/%m/%Y} ({len(encontradas)} vistas)"
+                        f"{fecha:%d/%m/%Y} ({len(encontradas)} vistas, {motivo})"
                     )
                     if fecha < desde - timedelta(days=1):
                         progreso.log("   Ya pasamos el rango de fechas. Fin del recorrido.")
                         return
+                else:
+                    fallos_sonda += 1
+                    progreso.log(f"   Sonda {sondas}: sin fecha — {motivo}")
+                    if fallos_sonda == 3:
+                        progreso.log(
+                            "   ⚠ Tres sondas seguidas sin fecha: no puedo saber "
+                            "cuando salgo del rango, asi que el recorrido parara "
+                            "por tiempo. Revisa el diagnostico si tarda demasiado."
+                        )
+                        self.guardar_diagnostico(aux, "instagram_sonda_sin_fecha")
 
             if len([p for p in encontradas.values()
                     if p.fecha and p.fecha >= desde]) >= opciones.max_publicaciones:
@@ -353,19 +364,35 @@ class ExtractorInstagram(ExtractorRed):
 
     # ------------------------------------------------------------- fechas
 
-    def _sonda_fecha(self, aux: Page, url: str) -> datetime | None:
-        """Lee la fecha exacta en una pestaña aparte (no perdemos el scroll)."""
+    def _sonda_fecha(self, aux: Page, url: str) -> tuple[datetime | None, str]:
+        """Lee la fecha exacta en una pestaña aparte (no perdemos el scroll).
+
+        Devuelve (fecha, motivo). El motivo NUNCA va vacio: si la sonda falla
+        hay que poder verlo en el registro. Una sonda que falla en silencio
+        deja el recorrido sin freno y no hay forma de saber por que.
+        """
         codigo = self._codigo_publicacion(url)
         try:
-            aux.goto(url, wait_until="domcontentloaded", timeout=30_000)
-            for intento in range(3):
-                aux.wait_for_timeout(400 if intento == 0 else 600)
+            aux.goto(url, wait_until="domcontentloaded", timeout=40_000)
+            datos = {}
+            for intento in range(5):
+                aux.wait_for_timeout(500 if intento == 0 else 800)
                 datos = aux.evaluate(JS_DATOS_PUBLICACION, codigo) or {}
                 if datos.get("fecha"):
-                    return _fecha_iso(datos["fecha"])
-        except Exception:
-            return None
-        return None
+                    break
+            if datos.get("fecha"):
+                fecha = _fecha_iso(datos["fecha"])
+                if fecha:
+                    return fecha, datos.get("confianza", "?")
+                return None, f"fecha ilegible: {datos['fecha'][:30]}"
+            if "/accounts/login" in aux.url:
+                return None, "Instagram pidio iniciar sesion"
+            return None, (
+                f"sin fecha en la pagina "
+                f"({datos.get('tiempos_en_pagina', 0)} etiquetas de tiempo)"
+            )
+        except Exception as e:
+            return None, f"error al abrirla: {type(e).__name__}"
 
     def _verificar_fechas(
         self,
