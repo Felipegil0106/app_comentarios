@@ -459,11 +459,52 @@ JS_DESPLAZAR_PANEL = r"""
 
 # Datos de la propia publicacion abierta (fecha exacta y texto)
 JS_DATOS_PUBLICACION = r"""
-() => {
+(idObjetivo) => {
   const html = document.documentElement.innerHTML;
+
+  // Eleccion de la fecha: NO vale coger el primer "creation_time" del HTML.
+  //
+  // La pagina de un reel trae SIEMPRE dos: el del reel y el de la tarjeta que
+  // el carrusel precarga detras. Comprobado sobre paginas reales, pueden
+  // diferir en semanas o meses, y cual aparece primero es indiferente. Coger
+  // el primero equivale a echarlo a suertes.
+  //
+  // El que vale es el que esta pegado al identificador de ESTA publicacion:
+  // en las paginas medidas, 390 caracteres frente a 12.494 del ajeno.
+  const cts = [];
+  const reCT = /"creation_time"\s*:\s*(\d{10})/g;
+  let m;
+  while ((m = reCT.exec(html)) !== null) cts.push([m.index, parseInt(m[1], 10)]);
+
   let creacion = null;
-  const m = html.match(/"creation_time"\s*:\s*(\d{10})/);
-  if (m) creacion = parseInt(m[1], 10);
+  let confianza = 'ninguna';
+
+  if (cts.length === 1) {
+    // Publicacion normal: no hay ambiguedad posible
+    creacion = cts[0][1];
+    confianza = 'unica';
+  } else if (cts.length > 1 && idObjetivo) {
+    const posiciones = [];
+    let desde = 0, k;
+    while ((k = html.indexOf(idObjetivo, desde)) !== -1) {
+      posiciones.push(k);
+      desde = k + 1;
+      if (posiciones.length > 500) break;
+    }
+    let mejor = null, mejorDist = Infinity;
+    for (const par of cts) {
+      for (const q of posiciones) {
+        const d = Math.abs(par[0] - q);
+        if (d < mejorDist) { mejorDist = d; mejor = par[1]; }
+      }
+    }
+    // Si ninguna fecha esta cerca del id, preferimos NO dar fecha antes que
+    // dar una equivocada: una fecha mala ensucia todo el rango.
+    if (mejor !== null && mejorDist <= 5000) {
+      creacion = mejor;
+      confianza = 'por_id';
+    }
+  }
 
   // Texto del post. Importante: hay que saltarse los bloques que estan dentro
   // de un comentario, o acabariamos guardando el comentario en vez del post.
@@ -506,7 +547,8 @@ JS_DATOS_PUBLICACION = r"""
     .find(t => t && t.length < 40 && /comentarios?|comments?/i.test(t) && /\d/.test(t));
   if (cand) anunciados = cand;
 
-  return {creacion: creacion, texto: texto.slice(0, 500), anunciados: anunciados,
+  return {creacion: creacion, confianza: confianza, fechas_en_pagina: cts.length,
+          texto: texto.slice(0, 500), anunciados: anunciados,
           url: location.href};
 }
 """

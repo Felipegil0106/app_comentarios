@@ -312,11 +312,12 @@ class ExtractorFacebook(ExtractorRed):
         principal perderiamos el punto por el que ibamos bajando la seccion y
         habria que empezar de cero.
         """
+        identificador = self._identificador_publicacion(url)
         try:
             aux.goto(url, wait_until="domcontentloaded", timeout=30_000)
             for intento in range(3):
                 aux.wait_for_timeout(300 if intento == 0 else 500)
-                datos = aux.evaluate(JS_DATOS_PUBLICACION) or {}
+                datos = aux.evaluate(JS_DATOS_PUBLICACION, identificador) or {}
                 if datos.get("creacion"):
                     return desde_epoch(datos["creacion"])
         except Exception:
@@ -623,6 +624,7 @@ class ExtractorFacebook(ExtractorRed):
         corregidas = 0
         seguidas_antiguas = 0
         comprobadas = 0
+        ambiguas = 0
 
         seccion_actual = publicaciones[0].seccion if publicaciones else ""
         i = 0
@@ -648,11 +650,13 @@ class ExtractorFacebook(ExtractorRed):
                 # En vez de esperar un tiempo fijo, preguntamos enseguida y solo
                 # insistimos si aun no esta. La fecha suele venir ya en el HTML
                 # inicial, asi que casi siempre acertamos al primer intento.
+                identificador = self._identificador_publicacion(pub.url)
                 datos = {}
                 for intento in range(4):
                     pagina.wait_for_timeout(250 if intento == 0 else 450)
                     try:
-                        datos = pagina.evaluate(JS_DATOS_PUBLICACION) or {}
+                        datos = pagina.evaluate(
+                            JS_DATOS_PUBLICACION, identificador) or {}
                     except Exception:
                         datos = {}
                     if datos.get("creacion"):
@@ -660,6 +664,8 @@ class ExtractorFacebook(ExtractorRed):
 
                 exacta = desde_epoch(datos.get("creacion")) if datos.get("creacion") else None
                 comprobadas += 1
+                if exacta is None and (datos.get("fechas_en_pagina") or 0) > 1:
+                    ambiguas += 1
                 if exacta:
                     if pub.fecha is None or abs((exacta - pub.fecha).total_seconds()) > 3600:
                         corregidas += 1
@@ -667,7 +673,12 @@ class ExtractorFacebook(ExtractorRed):
                     pub.fecha_aproximada = False
                     pub.nota = ""
                 else:
-                    pub.nota = "No se pudo leer la fecha exacta"
+                    pub.nota = (
+                        "Fecha ambigua: la pagina traia varias y ninguna es "
+                        "claramente de esta publicacion"
+                        if (datos.get("fechas_en_pagina") or 0) > 1
+                        else "No se pudo leer la fecha exacta"
+                    )
 
                 if datos.get("texto"):
                     pub.texto = datos["texto"]
@@ -700,10 +711,16 @@ class ExtractorFacebook(ExtractorRed):
             # Pausa corta para no atropellar a Facebook
             pagina.wait_for_timeout(random.randint(200, 450))
 
-        progreso.log(
+        resumen = (
             f"Fechas comprobadas: {comprobadas} de {total}. "
             f"Se corrigieron {corregidas}."
         )
+        if ambiguas:
+            resumen += (
+                f" {ambiguas} quedaron sin fecha por ser ambigua: prefiero "
+                "dejarlas sin confirmar antes que ponerles una fecha erronea."
+            )
+        progreso.log(resumen)
 
     @staticmethod
     def _enlace_de_comentario(href: str) -> bool:
@@ -728,7 +745,10 @@ class ExtractorFacebook(ExtractorRed):
         # Fecha exacta de la publicacion (mas fiable que la leida en el muro)
         fecha_exacta: datetime | None = None
         try:
-            datos = pagina.evaluate(JS_DATOS_PUBLICACION)
+            datos = pagina.evaluate(
+                JS_DATOS_PUBLICACION,
+                self._identificador_publicacion(publicacion.url),
+            )
             if datos.get("creacion"):
                 fecha_exacta = desde_epoch(datos["creacion"])
                 if fecha_exacta:
@@ -1093,6 +1113,28 @@ class ExtractorFacebook(ExtractorRed):
         if not ExtractorFacebook._tiene_identificador(base):
             return ""
         return base
+
+    @staticmethod
+    def _identificador_publicacion(url: str) -> str:
+        """Identificador de la publicacion, sacado de su URL.
+
+        Es lo que permite elegir la fecha correcta cuando la pagina trae
+        varias: nos quedamos con el «creation_time» que este pegado a este id.
+        """
+        u = url or ""
+        for patron in (
+            r"/reels?/(\d+)",
+            r"/videos/(?:[^/]+/)?(\d+)",
+            r"/posts/([A-Za-z0-9]+)",
+            r"[?&]v=(\d+)",
+            r"[?&]fbid=(\d+)",
+            r"story_fbid=(\d+)",
+            r"/watch/?\?v=(\d+)",
+        ):
+            m = re.search(patron, u)
+            if m:
+                return m.group(1)
+        return ""
 
     @staticmethod
     def _identificador_reel(url: str) -> str:
