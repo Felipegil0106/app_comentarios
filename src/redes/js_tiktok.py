@@ -34,6 +34,28 @@ JS_ENLACES_PUBLICACIONES = r"""
 }
 """
 
+# Identificadores de video incrustados en el HTML.
+#
+# TikTok manda los datos del perfil dentro de un bloque JSON aunque la
+# cuadricula todavia no se haya dibujado. De ahi se pueden sacar los videos sin
+# depender de que la pagina termine de pintarse, que es justo donde fallaba.
+#
+# Solo se aceptan las formas inequivocas (/video/NUMERO y awemeId): la clave
+# generica "id" tambien la usan los usuarios y colaria identificadores que no
+# son de publicaciones.
+JS_IDS_INCRUSTADOS = r"""
+() => {
+  const html = document.documentElement.innerHTML;
+  const ids = new Set();
+  let m;
+  const reUrl = /\/video\/(\d{18,20})/g;
+  while ((m = reUrl.exec(html)) !== null) ids.add(m[1]);
+  const reAweme = /"awemeId"\s*:\s*"(\d{18,20})"/g;
+  while ((m = reAweme.exec(html)) !== null) ids.add(m[1]);
+  return Array.from(ids).slice(0, 3000);
+}
+"""
+
 # Radiografia de la pagina: para saber QUE estamos viendo cuando no aparecen
 # publicaciones. Sin esto, un muro de acceso, un captcha y una pagina que no
 # cargo son indistinguibles: los tres dan cero enlaces.

@@ -42,6 +42,7 @@ from .js_tiktok import (
     JS_DESPLAZAR_PANEL,
     JS_ENLACES_PUBLICACIONES,
     JS_ESTADO_PAGINA,
+    JS_IDS_INCRUSTADOS,
     JS_IR_A,
     JS_IR_AL_FONDO,
     JS_LEER_COMENTARIOS,
@@ -176,6 +177,19 @@ class ExtractorTikTok(ExtractorRed):
             "La fecha de cada video sale de su identificador, asi que no hace "
             "falta abrirlos uno a uno para saber cuando se publicaron."
         )
+        # Visita previa a la portada. Un visitante normal llega al perfil ya
+        # con las cookies que TikTok reparte en la primera visita; entrando
+        # directo al perfil nos faltan y la pagina llega descafeinada.
+        try:
+            if "tiktok.com" not in pagina.url:
+                progreso.log("   Paso primero por la portada para recoger cookies…")
+                pagina.goto("https://www.tiktok.com/",
+                            wait_until="domcontentloaded", timeout=45_000)
+                pagina.wait_for_timeout(3000)
+                self._cerrar_estorbos(pagina)
+        except Exception:
+            pass
+
         pagina.goto(url_perfil, wait_until="domcontentloaded", timeout=60_000)
         self._cerrar_estorbos(pagina)
 
@@ -217,6 +231,12 @@ class ExtractorTikTok(ExtractorRed):
             except Exception as e:
                 progreso.log(f"   Aviso al leer la pagina: {str(e)[:90]}")
                 crudos = []
+
+            # Rescate: si la cuadricula no se dibuja, los videos suelen estar
+            # igualmente en el JSON que TikTok manda dentro de la pagina.
+            if not crudos:
+                crudos = self._ids_incrustados(pagina, url_perfil, progreso,
+                                               avisar=(ronda == 1))
 
             antes = len(encontradas)
             rechazados = 0
@@ -503,6 +523,42 @@ class ExtractorTikTok(ExtractorRed):
 
     # -------------------------------------------------------------- auxiliares
 
+    def _ids_incrustados(
+        self, pagina: Page, url_perfil: str, progreso: Progreso,
+        avisar: bool = False,
+    ) -> list[dict]:
+        """Saca los videos del JSON que TikTok incrusta en la pagina.
+
+        Es la red de seguridad para cuando la cuadricula no llega a dibujarse:
+        los datos del perfil viajan en el HTML aunque no se pinten. Como el
+        identificador de TikTok lleva la fecha dentro, con el numero basta
+        para tener la publicacion entera.
+        """
+        try:
+            ids = pagina.evaluate(JS_IDS_INCRUSTADOS) or []
+        except Exception:
+            return []
+
+        usuario = ""
+        m = re.search(r"/(@[^/?#]+)", url_perfil)
+        if m:
+            usuario = m.group(1)
+        if not usuario:
+            return []
+
+        # Solo los que dan una fecha creible: asi no se cuelan numeros que
+        # casualmente tengan 19 cifras y no sean publicaciones.
+        validos = [i for i in ids if fecha_desde_id(i)]
+        if validos and avisar:
+            progreso.log(
+                f"   La cuadricula no se dibujo, pero encontre {len(validos)} "
+                "videos en los datos que trae la pagina."
+            )
+        return [
+            {"href": f"https://www.tiktok.com/{usuario}/video/{i}", "texto": ""}
+            for i in validos
+        ]
+
     def _esperar_contenido(
         self, pagina: Page, progreso: Progreso, segundos: int = 30
     ) -> bool:
@@ -530,6 +586,13 @@ class ExtractorTikTok(ExtractorRed):
                 # cuando todavia no habia ni una publicacion.
                 if e.get("enlaces_video") or e.get("hay_captcha"):
                     return True
+                # Tambien vale si los videos vienen en el JSON de la pagina
+                # aunque la cuadricula siga sin dibujarse.
+                try:
+                    if pagina.evaluate(JS_IDS_INCRUSTADOS):
+                        return True
+                except Exception:
+                    pass
                 pagina.wait_for_timeout(1000)
 
             if intento == 1:
@@ -595,17 +658,19 @@ class ExtractorTikTok(ExtractorRed):
                     "navegador: si hay una verificacion, resuelvela a mano."
                 )
         elif not e.get("hay_sesion"):
-            # Caso mas frecuente: el perfil se ve (nombre, foto) pero la
-            # cuadricula de videos esta reservada a quien tiene cuenta.
+            # El perfil se ve (nombre, foto) pero sin cuadricula de videos.
+            # Puede ser por no tener sesion, o porque TikTok le sirve una
+            # version reducida a este navegador. Intentamos el rescate desde
+            # el JSON antes de dar nada por perdido.
             progreso.log(
-                "   ⚠ La pagina cargo, pero TikTok NO muestra los videos "
-                "porque no has iniciado sesion."
+                "   ⚠ La pagina cargo pero sin la cuadricula de videos "
+                "(no hay sesion iniciada)."
             )
             progreso.log(
-                "      Dos salidas: 1) «Abrir navegador e iniciar sesion» en el "
-                "Paso 1; o 2) Paso 4 → «Pegar URLs de publicaciones». En TikTok "
-                "la segunda funciona igual de bien, porque la fecha sale del "
-                "identificador del video."
+                "      Voy a intentar sacarlos de los datos que trae la pagina. "
+                "Si no aparecen: inicia sesion, o usa el Paso 4 → «Pegar URLs "
+                "de publicaciones», que en TikTok no pierde nada porque la "
+                "fecha sale del identificador del video."
             )
         else:
             progreso.log(
